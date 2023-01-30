@@ -3,6 +3,7 @@ pragma solidity ^0.8.17;
 
 import "../src/BaseV1-core.sol";
 import "../src/LeetSwapV1Router01.sol";
+import "../src/LeetSwapV1Router02.sol";
 import "forge-std/Test.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -17,6 +18,27 @@ contract Deploy is Test {
     }
 
     function run() external {
+        vm.startBroadcast();
+        LeetSwapV1Router02 router = new LeetSwapV1Router02(
+            0xE387067f12561e579C5f7d4294f51867E0c1cFba,
+            0x826551890Dc65655a0Aceca109aB11AbDbD7a07B,
+            0xEcf044C5B4b867CFda001101c617eCd347095B44
+        );
+        router.setStablePair(0x35DB1f3a6A6F07f82C76fCC415dB6cFB1a7df833, true); // NOTE/USDT
+        router.setStablePair(0x9571997a66D63958e1B3De9647C22bD6b9e7228c, true); // NOTE/USDC
+        router.setStablePair(0x3CE59FaB4b43B2709343Ba29c768E222e080e2a4, true); // USDT/USDC
+
+        uint256 beneficiaryTokenID = router.registerCSR();
+        console.log(
+            "CSR registered with beneficiaryTokenID:",
+            beneficiaryTokenID
+        );
+
+        vm.stopBroadcast();
+        console.log("Deployed router at", address(router));
+    }
+
+    function v1() external {
         vm.startBroadcast();
         LeetSwapV1Router01 router = new LeetSwapV1Router01(
             0xE387067f12561e579C5f7d4294f51867E0c1cFba,

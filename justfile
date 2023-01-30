@@ -50,13 +50,28 @@ restore-submodules:
             git submodule add $url $path
         done
 
-deploy:
+run-forge-script name func="run()" *args="":
     #!/bin/sh
 
-    forge script "script/Deploy.s.sol" \
+    echo "Running script {{name}}"
+    echo "Func: {{func}}"
+    echo "Args: {{args}}"
+
+    forge script "script/{{name}}.s.sol" \
     --rpc-url $RPC_NODE_URL \
     --sender $SENDER_ADDRESS \
     --keystores $KEYSTORE_PATH \
+    --sig "{{func}}" \
     --slow \
     --broadcast \
-    -vvvv
+    -vvvv {{args}}
+
+deploy-router:
+    #!/bin/sh
+
+    just run-forge-script Deploy
+
+turnstile-withdraw turnstile-address token-id:
+    #!/bin/sh
+
+    just run-forge-script ManageTurnstile "withdraw(address,uint256)" {{turnstile-address}} {{token-id}}
