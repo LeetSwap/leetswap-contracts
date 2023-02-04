@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-interface IFactoryV1 {
+interface ILeetSwapV2Factory {
     function allPairsLength() external view returns (uint256);
 
     function isPair(address pair) external view returns (bool);

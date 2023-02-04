@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-interface IPairV1 {
+interface ILeetSwapV2Pair {
     function transferFrom(
         address src,
         address dst,
@@ -35,9 +35,9 @@ interface IPairV1 {
         external
         view
         returns (
-            uint112 _reserve0,
-            uint112 _reserve1,
-            uint32 _blockTimestampLast
+            uint256 _reserve0,
+            uint256 _reserve1,
+            uint256 _blockTimestampLast
         );
 
     function getAmountOut(uint256, address) external view returns (uint256);
@@ -53,19 +53,7 @@ interface IPairV1 {
 
     function stable() external view returns (bool);
 
-    function _k(uint256 x, uint256 y) external view returns (uint256);
-
     //LP token pricing
-    function sampleReserves(uint256 points, uint256 window)
-        external
-        view
-        returns (uint256[] memory, uint256[] memory);
-
-    function sampleSupply(uint256 points, uint256 window)
-        external
-        view
-        returns (uint256[] memory);
-
     function sample(
         address tokenIn,
         uint256 amountIn,

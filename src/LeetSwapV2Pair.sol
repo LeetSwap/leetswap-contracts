@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "./LeetSwapV1Fees.sol";
-import "./LeetSwapV1Factory.sol";
+import "./LeetSwapV2Fees.sol";
+import "./LeetSwapV2Factory.sol";
 import "./libraries/Math.sol";
-import "./interfaces/ICalleeV1.sol";
+import "./interfaces/ILeetSwapV2Pair.sol";
+import "./interfaces/ILeetSwapV2Callee.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 // The base pair of pools, either stable or volatile
-contract LeetSwapV1Pair {
+contract LeetSwapV2Pair is ILeetSwapV2Pair {
     string public name;
     string public symbol;
     uint8 public constant decimals = 18;
@@ -33,7 +35,7 @@ contract LeetSwapV1Pair {
     address public immutable fees;
     address immutable factory;
 
-    // Structure to capture time period obervations every 30 minutes, used for local oracles
+    // Structure to capture time period observations every 30 minutes, used for local oracles
     struct Observation {
         uint256 timestamp;
         uint256 reserve0Cumulative;
@@ -101,49 +103,55 @@ contract LeetSwapV1Pair {
 
     constructor() {
         factory = msg.sender;
-        (address _token0, address _token1, bool _stable) = LeetSwapV1Factory(
+        (address _token0, address _token1, bool _stable) = LeetSwapV2Factory(
             msg.sender
         ).getInitializable();
         (token0, token1, stable) = (_token0, _token1, _stable);
-        fees = address(new LeetSwapV1Fees(_token0, _token1));
+        fees = address(
+            new LeetSwapV2Fees(
+                _token0,
+                _token1,
+                LeetSwapV2Factory(factory).burnables()
+            )
+        );
         if (_stable) {
             name = string(
                 abi.encodePacked(
                     "StableV1 AMM - ",
-                    IERC20(_token0).symbol(),
+                    IERC20Metadata(_token0).symbol(),
                     "/",
-                    IERC20(_token1).symbol()
+                    IERC20Metadata(_token1).symbol()
                 )
             );
             symbol = string(
                 abi.encodePacked(
                     "sAMM-",
-                    IERC20(_token0).symbol(),
+                    IERC20Metadata(_token0).symbol(),
                     "/",
-                    IERC20(_token1).symbol()
+                    IERC20Metadata(_token1).symbol()
                 )
             );
         } else {
             name = string(
                 abi.encodePacked(
                     "VolatileV1 AMM - ",
-                    IERC20(_token0).symbol(),
+                    IERC20Metadata(_token0).symbol(),
                     "/",
-                    IERC20(_token1).symbol()
+                    IERC20Metadata(_token1).symbol()
                 )
             );
             symbol = string(
                 abi.encodePacked(
                     "vAMM-",
-                    IERC20(_token0).symbol(),
+                    IERC20Metadata(_token0).symbol(),
                     "/",
-                    IERC20(_token1).symbol()
+                    IERC20Metadata(_token1).symbol()
                 )
             );
         }
 
-        decimals0 = 10**IERC20(_token0).decimals();
-        decimals1 = 10**IERC20(_token1).decimals();
+        decimals0 = 10**IERC20Metadata(_token0).decimals();
+        decimals1 = 10**IERC20Metadata(_token1).decimals();
 
         observations.push(Observation(block.timestamp, 0, 0));
     }
@@ -211,7 +219,7 @@ contract LeetSwapV1Pair {
         claimable0[recipient] = 0;
         claimable1[recipient] = 0;
 
-        LeetSwapV1Fees(fees).claimFeesFor(recipient, claimed0, claimed1);
+        LeetSwapV2Fees(fees).claimFeesFor(recipient, claimed0, claimed1);
 
         emit Claim(msg.sender, recipient, claimed0, claimed1);
     }
@@ -419,8 +427,8 @@ contract LeetSwapV1Pair {
     // standard uniswap v2 implementation
     function mint(address to) external lock returns (uint256 liquidity) {
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
-        uint256 _balance0 = IERC20(token0).balanceOf(address(this));
-        uint256 _balance1 = IERC20(token1).balanceOf(address(this));
+        uint256 _balance0 = IERC20Metadata(token0).balanceOf(address(this));
+        uint256 _balance1 = IERC20Metadata(token1).balanceOf(address(this));
         uint256 _amount0 = _balance0 - _reserve0;
         uint256 _amount1 = _balance1 - _reserve1;
 
@@ -450,8 +458,8 @@ contract LeetSwapV1Pair {
     {
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         (address _token0, address _token1) = (token0, token1);
-        uint256 _balance0 = IERC20(_token0).balanceOf(address(this));
-        uint256 _balance1 = IERC20(_token1).balanceOf(address(this));
+        uint256 _balance0 = IERC20Metadata(_token0).balanceOf(address(this));
+        uint256 _balance1 = IERC20Metadata(_token1).balanceOf(address(this));
         uint256 _liquidity = balanceOf[address(this)];
 
         uint256 _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
@@ -461,8 +469,8 @@ contract LeetSwapV1Pair {
         _burn(address(this), _liquidity);
         _safeTransfer(_token0, to, amount0);
         _safeTransfer(_token1, to, amount1);
-        _balance0 = IERC20(_token0).balanceOf(address(this));
-        _balance1 = IERC20(_token1).balanceOf(address(this));
+        _balance0 = IERC20Metadata(_token0).balanceOf(address(this));
+        _balance1 = IERC20Metadata(_token1).balanceOf(address(this));
 
         _update(_balance0, _balance1, _reserve0, _reserve1);
         emit Burn(msg.sender, amount0, amount1, to);
@@ -475,7 +483,7 @@ contract LeetSwapV1Pair {
         address to,
         bytes calldata data
     ) external lock {
-        require(!LeetSwapV1Factory(factory).isPaused());
+        require(!LeetSwapV2Factory(factory).isPaused());
         require(amount0Out > 0 || amount1Out > 0, "IOA"); // PairV1: INSUFFICIENT_OUTPUT_AMOUNT
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         require(amount0Out < _reserve0 && amount1Out < _reserve1, "IL"); // PairV1: INSUFFICIENT_LIQUIDITY
@@ -489,9 +497,14 @@ contract LeetSwapV1Pair {
             if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out); // optimistically transfer tokens
             if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out); // optimistically transfer tokens
             if (data.length > 0)
-                ICalleeV1(to).hook(msg.sender, amount0Out, amount1Out, data); // callback, used for flash loans
-            _balance0 = IERC20(_token0).balanceOf(address(this));
-            _balance1 = IERC20(_token1).balanceOf(address(this));
+                ILeetSwapV2Callee(to).hook(
+                    msg.sender,
+                    amount0Out,
+                    amount1Out,
+                    data
+                ); // callback, used for flash loans
+            _balance0 = IERC20Metadata(_token0).balanceOf(address(this));
+            _balance1 = IERC20Metadata(_token1).balanceOf(address(this));
         }
         uint256 amount0In = _balance0 > _reserve0 - amount0Out
             ? _balance0 - (_reserve0 - amount0Out)
@@ -505,8 +518,8 @@ contract LeetSwapV1Pair {
             (address _token0, address _token1) = (token0, token1);
             if (amount0In > 0) _update0((amount0In * 20) / 10000); // accrue fees for token0 and move them out of pool
             if (amount1In > 0) _update1((amount1In * 20) / 10000); // accrue fees for token1 and move them out of pool
-            _balance0 = IERC20(_token0).balanceOf(address(this)); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
-            _balance1 = IERC20(_token1).balanceOf(address(this));
+            _balance0 = IERC20Metadata(_token0).balanceOf(address(this)); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
+            _balance1 = IERC20Metadata(_token1).balanceOf(address(this));
             // The curve, either x3y+y3x for stable pools, or x*y for volatile pools
             require(_k(_balance0, _balance1) >= _k(_reserve0, _reserve1), "K"); // PairV1: K
         }
@@ -521,20 +534,20 @@ contract LeetSwapV1Pair {
         _safeTransfer(
             _token0,
             to,
-            IERC20(_token0).balanceOf(address(this)) - (reserve0)
+            IERC20Metadata(_token0).balanceOf(address(this)) - (reserve0)
         );
         _safeTransfer(
             _token1,
             to,
-            IERC20(_token1).balanceOf(address(this)) - (reserve1)
+            IERC20Metadata(_token1).balanceOf(address(this)) - (reserve1)
         );
     }
 
     // force reserves to match balances
     function sync() external lock {
         _update(
-            IERC20(token0).balanceOf(address(this)),
-            IERC20(token1).balanceOf(address(this)),
+            IERC20Metadata(token0).balanceOf(address(this)),
+            IERC20Metadata(token1).balanceOf(address(this)),
             reserve0,
             reserve1
         );

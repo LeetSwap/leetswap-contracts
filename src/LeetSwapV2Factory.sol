@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "./LeetSwapV1Pair.sol";
+import "./LeetSwapV2Pair.sol";
+import "./LeetSwapV2Burnables.sol";
+import "./interfaces/ILeetSwapV2Factory.sol";
 
-contract LeetSwapV1Factory {
+contract LeetSwapV2Factory is ILeetSwapV2Factory {
     bool public isPaused;
     address public pauser;
     address public pendingPauser;
+    ILeetSwapV2Burnables public burnables;
 
     mapping(address => mapping(address => mapping(bool => address)))
         public getPair;
@@ -25,9 +28,10 @@ contract LeetSwapV1Factory {
         uint256
     );
 
-    constructor() {
+    constructor(ILeetSwapV2Burnables _burnables) {
         pauser = msg.sender;
         isPaused = false;
+        burnables = _burnables;
     }
 
     function allPairsLength() external view returns (uint256) {
@@ -50,7 +54,7 @@ contract LeetSwapV1Factory {
     }
 
     function pairCodeHash() external pure returns (bytes32) {
-        return keccak256(type(LeetSwapV1Pair).creationCode);
+        return keccak256(type(LeetSwapV2Pair).creationCode);
     }
 
     function getInitializable()
@@ -78,7 +82,7 @@ contract LeetSwapV1Factory {
         require(getPair[token0][token1][stable] == address(0), "PE"); // PairFactoryV1: PAIR_EXISTS - single check is sufficient
         bytes32 salt = keccak256(abi.encodePacked(token0, token1, stable)); // notice salt includes stable as well, 3 parameters
         (_temp0, _temp1, _temp) = (token0, token1, stable);
-        pair = address(new LeetSwapV1Pair{salt: salt}());
+        pair = address(new LeetSwapV2Pair{salt: salt}());
         getPair[token0][token1][stable] = pair;
         getPair[token1][token0][stable] = pair; // populate mapping in the reverse direction
         allPairs.push(pair);
