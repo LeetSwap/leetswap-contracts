@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import "./LeetSwapV2Pair.sol";
 import "./LeetSwapV2Burnables.sol";
 import "./interfaces/ILeetSwapV2Factory.sol";
+import "./interfaces/ITradingFeesOracle.sol";
 import "./interfaces/ITurnstile.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -13,9 +14,13 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
     address public pendingPauser;
     ILeetSwapV2Burnables public burnables;
     ITurnstile public turnstile;
+    ITradingFeesOracle public tradingFeesOracle;
+    uint256 public protocolFeesShare;
+    address public protocolFeesRecipient;
 
     mapping(address => mapping(address => mapping(bool => address)))
         internal _getPair;
+    uint256 internal _tradingFees;
 
     address[] public allPairs;
     mapping(address => bool) public isPair; // simplified check if it's a pair, given that `stable` flag might not be available in peripherals
@@ -34,6 +39,7 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
 
     constructor(
         ILeetSwapV2Burnables _burnables,
+        address _protocolFeesRecipient,
         ITurnstile _turnstile,
         uint256 _csrTokenID
     ) {
@@ -42,6 +48,9 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
         burnables = _burnables;
         turnstile = _turnstile;
         turnstile.assign(_csrTokenID);
+        protocolFeesRecipient = _protocolFeesRecipient;
+        _tradingFees = 30;
+        protocolFeesShare = 0;
     }
 
     function allPairsLength() external view returns (uint256) {
@@ -125,7 +134,48 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
         return createPair(tokenA, tokenB, false);
     }
 
-    // **** CSR FUNCTIONS ****
+    function tradingFees(address pair, address to)
+        external
+        view
+        returns (uint256 fees)
+    {
+        if (address(tradingFeesOracle) == address(0)) {
+            fees = _tradingFees;
+        } else {
+            fees = tradingFeesOracle.getTradingFees(pair, to);
+        }
+
+        return fees > 100 ? 100 : fees; // max 1% fees
+    }
+
+    // **** ADMIN FUNCTIONS ****
+    function setTradingFeesOracle(ITradingFeesOracle _tradingFeesOracle)
+        external
+        onlyOwner
+    {
+        tradingFeesOracle = _tradingFeesOracle;
+    }
+
+    function setProtocolFeesRecipient(address _protocolFeesRecipient)
+        external
+        onlyOwner
+    {
+        protocolFeesRecipient = _protocolFeesRecipient;
+    }
+
+    function setTradingFees(uint256 _fee) external onlyOwner {
+        _tradingFees = _fee;
+    }
+
+    function setProtocolFeesShare(uint256 _protocolFeesShare)
+        external
+        onlyOwner
+    {
+        protocolFeesShare = _protocolFeesShare > 5000
+            ? 5000
+            : _protocolFeesShare; // max 50%
+    }
+
     function setTurnstile(address _turnstile) external onlyOwner {
         turnstile = ITurnstile(_turnstile);
     }

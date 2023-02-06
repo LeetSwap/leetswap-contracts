@@ -242,7 +242,14 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
 
     // Accrue fees on token0
     function _update0(uint256 amount) internal {
+        uint256 _protocolFeesShare = LeetSwapV2Factory(factory)
+            .protocolFeesShare();
+        address _protocolFeesRecipient = LeetSwapV2Factory(factory)
+            .protocolFeesRecipient();
+        uint256 _protocolFeesAmount = (amount * _protocolFeesShare) / 10000;
+        amount -= _protocolFeesAmount;
         _safeTransfer(token0, fees, amount); // transfer the fees out to FeesV1
+        _safeTransfer(token0, _protocolFeesRecipient, _protocolFeesAmount); // transfer the protocol fees out to the protocol fees recipient
         uint256 _ratio = (amount * 1e18) / totalSupply; // 1e18 adjustment is removed during claim
         if (_ratio > 0) {
             index0 += _ratio;
@@ -252,7 +259,14 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
 
     // Accrue fees on token1
     function _update1(uint256 amount) internal {
+        uint256 _protocolFeesShare = LeetSwapV2Factory(factory)
+            .protocolFeesShare();
+        address _protocolFeesRecipient = LeetSwapV2Factory(factory)
+            .protocolFeesRecipient();
+        uint256 _protocolFeesAmount = (amount * _protocolFeesShare) / 10000;
+        amount -= _protocolFeesAmount;
         _safeTransfer(token1, fees, amount);
+        _safeTransfer(token1, _protocolFeesRecipient, _protocolFeesAmount);
         uint256 _ratio = (amount * 1e18) / totalSupply;
         if (_ratio > 0) {
             index1 += _ratio;
@@ -503,6 +517,10 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         require(amount0Out > 0 || amount1Out > 0, "IOA"); // PairV1: INSUFFICIENT_OUTPUT_AMOUNT
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         require(amount0Out < _reserve0 && amount1Out < _reserve1, "IL"); // PairV1: INSUFFICIENT_LIQUIDITY
+        uint256 _tradingFees = LeetSwapV2Factory(factory).tradingFees(
+            address(this),
+            to
+        );
 
         uint256 _balance0;
         uint256 _balance1;
@@ -532,8 +550,8 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
             (address _token0, address _token1) = (token0, token1);
-            if (amount0In > 0) _update0((amount0In * 20) / 10000); // accrue fees for token0 and move them out of pool
-            if (amount1In > 0) _update1((amount1In * 20) / 10000); // accrue fees for token1 and move them out of pool
+            if (amount0In > 0) _update0((amount0In * _tradingFees) / 10000); // accrue fees for token0 and move them out of pool
+            if (amount1In > 0) _update1((amount1In * _tradingFees) / 10000); // accrue fees for token1 and move them out of pool
             _balance0 = IERC20Metadata(_token0).balanceOf(address(this)); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
             _balance1 = IERC20Metadata(_token1).balanceOf(address(this));
             // The curve, either x3y+y3x for stable pools, or x*y for volatile pools
@@ -612,14 +630,26 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         return y;
     }
 
+    function getAmountOut(
+        uint256 amountIn,
+        address tokenIn,
+        address to
+    ) public view returns (uint256) {
+        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
+        uint256 _tradingFees = LeetSwapV2Factory(factory).tradingFees(
+            address(this),
+            to
+        );
+        amountIn -= (amountIn * _tradingFees) / 10000; // remove fee from amount received
+        return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
+    }
+
     function getAmountOut(uint256 amountIn, address tokenIn)
         external
         view
         returns (uint256)
     {
-        (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
-        amountIn -= (amountIn * 20) / 10000; // remove fee from amount received
-        return _getAmountOut(amountIn, tokenIn, _reserve0, _reserve1);
+        return getAmountOut(amountIn, tokenIn, msg.sender);
     }
 
     function _getAmountOut(
