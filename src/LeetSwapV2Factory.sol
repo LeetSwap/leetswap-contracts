@@ -100,7 +100,7 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
         address tokenA,
         address tokenB,
         bool stable
-    ) external returns (address pair) {
+    ) public returns (address pair) {
         require(tokenA != tokenB, "IA"); // PairFactoryV1: IDENTICAL_ADDRESSES
         (address token0, address token1) = tokenA < tokenB
             ? (tokenA, tokenB)
@@ -115,6 +115,14 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
         allPairs.push(pair);
         isPair[pair] = true;
         emit PairCreated(token0, token1, stable, pair, allPairs.length);
+    }
+
+    // UniswapV2 fallback
+    function createPair(address tokenA, address tokenB)
+        external
+        returns (address pair)
+    {
+        return createPair(tokenA, tokenB, false);
     }
 
     // **** CSR FUNCTIONS ****
