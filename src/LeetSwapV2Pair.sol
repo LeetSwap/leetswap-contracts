@@ -10,8 +10,6 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 // The base pair of pools, either stable or volatile
 contract LeetSwapV2Pair is ILeetSwapV2Pair {
-    string public name;
-    string public symbol;
     uint8 public constant decimals = 18;
 
     // Used to denote stable or volatile pair, not immutable since construction happens in the initialize method for CREATE2 deterministic addresses
@@ -33,7 +31,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
     address public immutable token0;
     address public immutable token1;
     address public immutable fees;
-    address immutable factory;
+    address public immutable factory;
 
     // Structure to capture time period observations every 30 minutes, used for local oracles
     struct Observation {
@@ -114,46 +112,59 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
                 LeetSwapV2Factory(factory).burnables()
             )
         );
-        if (_stable) {
-            name = string(
-                abi.encodePacked(
-                    "StableV1 AMM - ",
-                    IERC20Metadata(_token0).symbol(),
-                    "/",
-                    IERC20Metadata(_token1).symbol()
-                )
-            );
-            symbol = string(
-                abi.encodePacked(
-                    "sAMM-",
-                    IERC20Metadata(_token0).symbol(),
-                    "/",
-                    IERC20Metadata(_token1).symbol()
-                )
-            );
-        } else {
-            name = string(
-                abi.encodePacked(
-                    "VolatileV1 AMM - ",
-                    IERC20Metadata(_token0).symbol(),
-                    "/",
-                    IERC20Metadata(_token1).symbol()
-                )
-            );
-            symbol = string(
-                abi.encodePacked(
-                    "vAMM-",
-                    IERC20Metadata(_token0).symbol(),
-                    "/",
-                    IERC20Metadata(_token1).symbol()
-                )
-            );
-        }
 
         decimals0 = 10**IERC20Metadata(_token0).decimals();
         decimals1 = 10**IERC20Metadata(_token1).decimals();
 
         observations.push(Observation(block.timestamp, 0, 0));
+    }
+
+    function name() public view returns (string memory) {
+        if (stable) {
+            return
+                string(
+                    abi.encodePacked(
+                        "StableV1 AMM - ",
+                        IERC20Metadata(token0).symbol(),
+                        "/",
+                        IERC20Metadata(token1).symbol()
+                    )
+                );
+        }
+
+        return
+            string(
+                abi.encodePacked(
+                    "VolatileV1 AMM - ",
+                    IERC20Metadata(token0).symbol(),
+                    "/",
+                    IERC20Metadata(token1).symbol()
+                )
+            );
+    }
+
+    function symbol() public view returns (string memory) {
+        if (stable) {
+            return
+                string(
+                    abi.encodePacked(
+                        "sAMM-",
+                        IERC20Metadata(token0).symbol(),
+                        "/",
+                        IERC20Metadata(token1).symbol()
+                    )
+                );
+        }
+
+        return
+            string(
+                abi.encodePacked(
+                    "vAMM-",
+                    IERC20Metadata(token0).symbol(),
+                    "/",
+                    IERC20Metadata(token1).symbol()
+                )
+            );
     }
 
     // simple re-entrancy check
@@ -680,7 +691,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
                 keccak256(
                     "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
                 ),
-                keccak256(bytes(name)),
+                keccak256(bytes(name())),
                 keccak256(bytes("1")),
                 block.chainid,
                 address(this)
