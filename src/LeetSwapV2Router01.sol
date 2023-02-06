@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
+import "./interfaces/ILeetSwapV2Factory.sol";
+import "./interfaces/ILeetSwapV2Pair.sol";
 import "./interfaces/IWCANTO.sol";
-import "./interfaces/IBaseV1Factory.sol";
-import "./interfaces/IBaseV1Pair.sol";
-import "./interfaces/ITurnstile.sol";
-import "./BaseV1-libs.sol";
+import "./libraries/Math.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract LeetSwapV1Router02 is Ownable {
+contract LeetSwapV2Router01 is Ownable {
     struct Route {
         address from;
         address to;
@@ -17,7 +17,6 @@ contract LeetSwapV1Router02 is Ownable {
 
     address public immutable factory;
     IWCANTO public immutable wcanto;
-    ITurnstile public turnstile;
     uint256 internal constant MINIMUM_LIQUIDITY = 10**3;
     bytes32 immutable pairCodeHash;
     mapping(address => bool) public stablePairs;
@@ -41,15 +40,14 @@ contract LeetSwapV1Router02 is Ownable {
         _;
     }
 
-    constructor(
-        address _factory,
-        address _wcanto,
-        address _turnstile
-    ) {
+    constructor(address _factory, address _wcanto) {
         factory = _factory;
-        pairCodeHash = IBaseV1Factory(_factory).pairCodeHash();
+        pairCodeHash = ILeetSwapV2Factory(_factory).pairCodeHash();
         wcanto = IWCANTO(_wcanto);
-        turnstile = ITurnstile(_turnstile);
+
+        ITurnstile turnstile = ILeetSwapV2Factory(factory).turnstile();
+        uint256 csrTokenID = turnstile.getTokenId(factory);
+        turnstile.assign(csrTokenID);
     }
 
     receive() external payable {
@@ -123,7 +121,7 @@ contract LeetSwapV1Router02 is Ownable {
         returns (uint256 reserveA, uint256 reserveB)
     {
         (address token0, ) = sortTokens(tokenA, tokenB);
-        (uint256 reserve0, uint256 reserve1, ) = IBaseV1Pair(
+        (uint256 reserve0, uint256 reserve1, ) = ILeetSwapV2Pair(
             pairFor(tokenA, tokenB)
         ).getReserves();
         (reserveA, reserveB) = tokenA == token0
@@ -138,8 +136,8 @@ contract LeetSwapV1Router02 is Ownable {
         address tokenOut
     ) public view returns (uint256 amount) {
         address pair = pairFor(tokenIn, tokenOut);
-        if (IBaseV1Factory(factory).isPair(pair)) {
-            amount = IBaseV1Pair(pair).getAmountOut(amountIn, tokenIn);
+        if (ILeetSwapV2Factory(factory).isPair(pair)) {
+            amount = ILeetSwapV2Pair(pair).getAmountOut(amountIn, tokenIn);
         }
     }
 
@@ -154,8 +152,8 @@ contract LeetSwapV1Router02 is Ownable {
         amounts[0] = amountIn;
         for (uint256 i = 0; i < routes.length; i++) {
             address pair = pairFor(routes[i].from, routes[i].to);
-            if (IBaseV1Factory(factory).isPair(pair)) {
-                amounts[i + 1] = IBaseV1Pair(pair).getAmountOut(
+            if (ILeetSwapV2Factory(factory).isPair(pair)) {
+                amounts[i + 1] = ILeetSwapV2Pair(pair).getAmountOut(
                     amounts[i],
                     routes[i].from
                 );
@@ -175,7 +173,7 @@ contract LeetSwapV1Router02 is Ownable {
     }
 
     function isPair(address pair) public view returns (bool) {
-        return IBaseV1Factory(factory).isPair(pair);
+        return ILeetSwapV2Factory(factory).isPair(pair);
     }
 
     function _pathToRoutes(address[] calldata path)
@@ -206,7 +204,7 @@ contract LeetSwapV1Router02 is Ownable {
             address to = i < routes.length - 1
                 ? pairFor(routes[i + 1].from, routes[i + 1].to)
                 : _to;
-            IBaseV1Pair(pairFor(routes[i].from, routes[i].to)).swap(
+            ILeetSwapV2Pair(pairFor(routes[i].from, routes[i].to)).swap(
                 amount0Out,
                 amount1Out,
                 to,
@@ -290,7 +288,7 @@ contract LeetSwapV1Router02 is Ownable {
         for (uint256 i; i < path.length - 1; i++) {
             (address input, address output) = (path[i], path[i + 1]);
             (address token0, ) = sortTokens(input, output);
-            IBaseV1Pair pair = IBaseV1Pair(pairFor(input, output));
+            ILeetSwapV2Pair pair = ILeetSwapV2Pair(pairFor(input, output));
             uint256 amountInput;
             uint256 amountOutput;
             {
@@ -398,9 +396,17 @@ contract LeetSwapV1Router02 is Ownable {
         require(amountADesired >= amountAMin);
         require(amountBDesired >= amountBMin);
         // create the pair if it doesn"t exist yet
-        address _pair = IBaseV1Factory(factory).getPair(tokenA, tokenB, stable);
+        address _pair = ILeetSwapV2Factory(factory).getPair(
+            tokenA,
+            tokenB,
+            stable
+        );
         if (_pair == address(0)) {
-            _pair = IBaseV1Factory(factory).createPair(tokenA, tokenB, stable);
+            _pair = ILeetSwapV2Factory(factory).createPair(
+                tokenA,
+                tokenB,
+                stable
+            );
         }
         (uint256 reserveA, uint256 reserveB) = getReserves(tokenA, tokenB);
         if (reserveA == 0 && reserveB == 0) {
@@ -462,7 +468,7 @@ contract LeetSwapV1Router02 is Ownable {
         );
         _safeTransferFrom(tokenA, msg.sender, pair, amountA);
         _safeTransferFrom(tokenB, msg.sender, pair, amountB);
-        liquidity = IBaseV1Pair(pair).mint(to);
+        liquidity = ILeetSwapV2Pair(pair).mint(to);
     }
 
     function addLiquidityETH(
@@ -496,7 +502,7 @@ contract LeetSwapV1Router02 is Ownable {
         _safeTransferFrom(token, msg.sender, pair, amountToken);
         wcanto.deposit{value: amountCANTO}();
         assert(wcanto.transfer(pair, amountCANTO));
-        liquidity = IBaseV1Pair(pair).mint(to);
+        liquidity = ILeetSwapV2Pair(pair).mint(to);
         // refund dust eth, if any
         if (msg.value > amountCANTO) {
             _safeTransferETH(msg.sender, msg.value - amountCANTO);
@@ -519,8 +525,10 @@ contract LeetSwapV1Router02 is Ownable {
         uint256 deadline
     ) public ensure(deadline) returns (uint256 amountA, uint256 amountB) {
         address pair = pairFor(tokenA, tokenB);
-        require(IBaseV1Pair(pair).transferFrom(msg.sender, pair, liquidity)); // send liquidity to pair
-        (uint256 amount0, uint256 amount1) = IBaseV1Pair(pair).burn(to);
+        require(
+            ILeetSwapV2Pair(pair).transferFrom(msg.sender, pair, liquidity)
+        ); // send liquidity to pair
+        (uint256 amount0, uint256 amount1) = ILeetSwapV2Pair(pair).burn(to);
         (address token0, ) = sortTokens(tokenA, tokenB);
         (amountA, amountB) = tokenA == token0
             ? (amount0, amount1)
@@ -619,22 +627,5 @@ contract LeetSwapV1Router02 is Ownable {
         for (uint256 i = 0; i < pairs.length; i++) {
             stablePairs[pairs[i]] = stable[i];
         }
-    }
-
-    // **** CSR FUNCTIONS ****
-    function setTurnstile(address _turnstile) external onlyOwner {
-        turnstile = ITurnstile(_turnstile);
-    }
-
-    function registerCSR() external onlyOwner returns (uint256) {
-        return turnstile.register(msg.sender);
-    }
-
-    function assignCSR(uint256 beneficiaryTokenID)
-        external
-        onlyOwner
-        returns (uint256)
-    {
-        return turnstile.assign(beneficiaryTokenID);
     }
 }

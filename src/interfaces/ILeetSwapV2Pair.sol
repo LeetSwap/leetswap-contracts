@@ -2,6 +2,8 @@
 pragma solidity 0.8.17;
 
 interface ILeetSwapV2Pair {
+    function factory() external view returns (address);
+
     function transferFrom(
         address src,
         address dst,

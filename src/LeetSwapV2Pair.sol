@@ -6,6 +6,7 @@ import "./LeetSwapV2Factory.sol";
 import "./libraries/Math.sol";
 import "./interfaces/ILeetSwapV2Pair.sol";
 import "./interfaces/ILeetSwapV2Callee.sol";
+import "./interfaces/ITurnstile.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 // The base pair of pools, either stable or volatile
@@ -117,6 +118,10 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         decimals1 = 10**IERC20Metadata(_token1).decimals();
 
         observations.push(Observation(block.timestamp, 0, 0));
+
+        ITurnstile turnstile = LeetSwapV2Factory(factory).turnstile();
+        uint256 csrTokenID = turnstile.getTokenId(factory);
+        turnstile.assign(csrTokenID);
     }
 
     function name() public view returns (string memory) {
