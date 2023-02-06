@@ -54,6 +54,11 @@ contract LeetSwapV2Router01 is Ownable {
         assert(msg.sender == address(wcanto)); // only accept ETH via fallback from the wcanto contract
     }
 
+    // UniswapV2 compatibility
+    function WETH() external view returns (address) {
+        return address(wcanto);
+    }
+
     function sortTokens(address tokenA, address tokenB)
         public
         pure
