@@ -517,10 +517,6 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         require(amount0Out > 0 || amount1Out > 0, "IOA"); // PairV1: INSUFFICIENT_OUTPUT_AMOUNT
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         require(amount0Out < _reserve0 && amount1Out < _reserve1, "IL"); // PairV1: INSUFFICIENT_LIQUIDITY
-        uint256 _tradingFees = LeetSwapV2Factory(factory).tradingFees(
-            address(this),
-            to
-        );
 
         uint256 _balance0;
         uint256 _balance1;
@@ -550,6 +546,10 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
             (address _token0, address _token1) = (token0, token1);
+            uint256 _tradingFees = LeetSwapV2Factory(factory).tradingFees(
+                address(this),
+                to
+            );
             if (amount0In > 0) _update0((amount0In * _tradingFees) / 10000); // accrue fees for token0 and move them out of pool
             if (amount1In > 0) _update1((amount1In * _tradingFees) / 10000); // accrue fees for token1 and move them out of pool
             _balance0 = IERC20Metadata(_token0).balanceOf(address(this)); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
