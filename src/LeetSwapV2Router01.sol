@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import "./interfaces/ILeetSwapV2Factory.sol";
 import "./interfaces/ILeetSwapV2Pair.sol";
 import "./interfaces/IWCANTO.sol";
+import "./interfaces/ILiquidityManageable.sol";
 import "./libraries/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -52,6 +53,34 @@ contract LeetSwapV2Router01 is Ownable {
 
     receive() external payable {
         assert(msg.sender == address(wcanto)); // only accept ETH via fallback from the wcanto contract
+    }
+
+    // **** LIQUIDITY MANAGEABLE PROTOCOL ****
+    //
+    // we use the following functions because we can't use modifiers due to the stack size limit
+    // and the hefty amount of parameters and local variables of the Uniswap liquidity functions
+
+    // it's safe to naively call the functions because if any of the token don't implement the interface
+    // or if the router is not a liquidity manager, the call will silently fail with no harm and without
+    // having to waste gas to check for the support of the standard
+    function _startLiquidityManagement(address tokenA, address tokenB)
+        internal
+    {
+        ILiquidityManageable lmTokenA = ILiquidityManageable(tokenA);
+        ILiquidityManageable lmTokenB = ILiquidityManageable(tokenB);
+
+        try lmTokenA.setLiquidityManagementPhase(true) {} catch {}
+        try lmTokenB.setLiquidityManagementPhase(true) {} catch {}
+    }
+
+    // if the previous 'start' call failed, nothing will happen here, still silently fail, whereas if it
+    // succeeded, the liquidity management phase will be set to false
+    function _stopLiquidityManagement(address tokenA, address tokenB) internal {
+        ILiquidityManageable lmTokenA = ILiquidityManageable(tokenA);
+        ILiquidityManageable lmTokenB = ILiquidityManageable(tokenB);
+
+        try lmTokenA.setLiquidityManagementPhase(false) {} catch {}
+        try lmTokenB.setLiquidityManagementPhase(false) {} catch {}
     }
 
     // UniswapV2 compatibility
@@ -460,6 +489,8 @@ contract LeetSwapV2Router01 is Ownable {
             uint256 liquidity
         )
     {
+        _startLiquidityManagement(tokenA, tokenB);
+
         address pair = pairFor(tokenA, tokenB);
         bool isStable = stablePairs[pair];
         (amountA, amountB) = _addLiquidity(
@@ -474,6 +505,8 @@ contract LeetSwapV2Router01 is Ownable {
         _safeTransferFrom(tokenA, msg.sender, pair, amountA);
         _safeTransferFrom(tokenB, msg.sender, pair, amountB);
         liquidity = ILeetSwapV2Pair(pair).mint(to);
+
+        _stopLiquidityManagement(tokenA, tokenB);
     }
 
     function addLiquidityETH(
@@ -493,6 +526,8 @@ contract LeetSwapV2Router01 is Ownable {
             uint256 liquidity
         )
     {
+        _startLiquidityManagement(token, address(wcanto));
+
         address pair = pairFor(token, address(wcanto));
         bool isStable = stablePairs[pair];
         (amountToken, amountCANTO) = _addLiquidity(
@@ -512,6 +547,8 @@ contract LeetSwapV2Router01 is Ownable {
         if (msg.value > amountCANTO) {
             _safeTransferETH(msg.sender, msg.value - amountCANTO);
         }
+
+        _stopLiquidityManagement(token, address(wcanto));
     }
 
     function _safeTransferETH(address to, uint256 value) internal {
@@ -529,6 +566,8 @@ contract LeetSwapV2Router01 is Ownable {
         address to,
         uint256 deadline
     ) public ensure(deadline) returns (uint256 amountA, uint256 amountB) {
+        _startLiquidityManagement(tokenA, tokenB);
+
         address pair = pairFor(tokenA, tokenB);
         require(
             ILeetSwapV2Pair(pair).transferFrom(msg.sender, pair, liquidity)
@@ -544,6 +583,8 @@ contract LeetSwapV2Router01 is Ownable {
         if (amountB < amountBMin) {
             revert InsufficientBAmount();
         }
+
+        _stopLiquidityManagement(tokenA, tokenB);
     }
 
     function removeLiquidityETH(
@@ -558,6 +599,8 @@ contract LeetSwapV2Router01 is Ownable {
         ensure(deadline)
         returns (uint256 amountToken, uint256 amountCANTO)
     {
+        _startLiquidityManagement(token, address(wcanto));
+
         (amountToken, amountCANTO) = removeLiquidity(
             token,
             address(wcanto),
@@ -570,6 +613,8 @@ contract LeetSwapV2Router01 is Ownable {
         _safeTransfer(token, to, amountToken);
         wcanto.withdraw(amountCANTO);
         _safeTransferETH(to, amountCANTO);
+
+        _stopLiquidityManagement(token, address(wcanto));
     }
 
     // **** REMOVE LIQUIDITY (supporting fee-on-transfer tokens) ****
@@ -581,6 +626,8 @@ contract LeetSwapV2Router01 is Ownable {
         address to,
         uint256 deadline
     ) public virtual ensure(deadline) returns (uint256 amountCANTO) {
+        _startLiquidityManagement(token, address(wcanto));
+
         (, amountCANTO) = removeLiquidity(
             token,
             address(wcanto),
@@ -593,6 +640,8 @@ contract LeetSwapV2Router01 is Ownable {
         _safeTransfer(token, to, IERC20(token).balanceOf(address(this)));
         wcanto.withdraw(amountCANTO);
         _safeTransferETH(to, amountCANTO);
+
+        _stopLiquidityManagement(token, address(wcanto));
     }
 
     // **** LIBRARY FUNCTIONS ****
