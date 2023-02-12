@@ -9,10 +9,11 @@ import "./interfaces/ITurnstile.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
+    ILeetSwapV2Burnables public immutable burnables;
+
     bool public isPaused;
     address public pauser;
     address public pendingPauser;
-    ILeetSwapV2Burnables public burnables;
     ITurnstile public turnstile;
     ITradingFeesOracle public tradingFeesOracle;
     uint256 public protocolFeesShare;
@@ -37,12 +38,12 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
         uint256
     );
 
-    constructor(ILeetSwapV2Burnables _burnables, ITurnstile _turnstile) {
+    constructor(ITurnstile _turnstile) {
         pauser = msg.sender;
         isPaused = false;
-        burnables = _burnables;
         turnstile = _turnstile;
         turnstile.register(msg.sender);
+        burnables = new LeetSwapV2Burnables();
         protocolFeesRecipient = msg.sender;
         _tradingFees = 30;
         protocolFeesShare = 0;
