@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import "./LeetSwapV2Fees.sol";
-import "./LeetSwapV2Factory.sol";
+import "./interfaces/ILeetSwapV2Factory.sol";
 import "./libraries/Math.sol";
 import "./interfaces/ILeetSwapV2Pair.sol";
 import "./interfaces/ILeetSwapV2Callee.sol";
@@ -102,7 +102,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
 
     constructor() {
         factory = msg.sender;
-        (address _token0, address _token1, bool _stable) = LeetSwapV2Factory(
+        (address _token0, address _token1, bool _stable) = ILeetSwapV2Factory(
             msg.sender
         ).getInitializable();
         (token0, token1, stable) = (_token0, _token1, _stable);
@@ -110,7 +110,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
             new LeetSwapV2Fees(
                 _token0,
                 _token1,
-                LeetSwapV2Factory(factory).burnables()
+                ILeetSwapV2Factory(factory).burnables()
             )
         );
 
@@ -119,7 +119,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
 
         observations.push(Observation(block.timestamp, 0, 0));
 
-        ITurnstile turnstile = LeetSwapV2Factory(factory).turnstile();
+        ITurnstile turnstile = ILeetSwapV2Factory(factory).turnstile();
         uint256 csrTokenID = turnstile.getTokenId(factory);
         turnstile.assign(csrTokenID);
     }
@@ -242,9 +242,9 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
 
     // Accrue fees on token0
     function _update0(uint256 amount) internal {
-        uint256 _protocolFeesShare = LeetSwapV2Factory(factory)
+        uint256 _protocolFeesShare = ILeetSwapV2Factory(factory)
             .protocolFeesShare();
-        address _protocolFeesRecipient = LeetSwapV2Factory(factory)
+        address _protocolFeesRecipient = ILeetSwapV2Factory(factory)
             .protocolFeesRecipient();
         uint256 _protocolFeesAmount = (amount * _protocolFeesShare) / 10000;
         amount -= _protocolFeesAmount;
@@ -259,9 +259,9 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
 
     // Accrue fees on token1
     function _update1(uint256 amount) internal {
-        uint256 _protocolFeesShare = LeetSwapV2Factory(factory)
+        uint256 _protocolFeesShare = ILeetSwapV2Factory(factory)
             .protocolFeesShare();
-        address _protocolFeesRecipient = LeetSwapV2Factory(factory)
+        address _protocolFeesRecipient = ILeetSwapV2Factory(factory)
             .protocolFeesRecipient();
         uint256 _protocolFeesAmount = (amount * _protocolFeesShare) / 10000;
         amount -= _protocolFeesAmount;
@@ -513,7 +513,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         address to,
         bytes calldata data
     ) external lock {
-        require(!LeetSwapV2Factory(factory).isPaused());
+        require(!ILeetSwapV2Factory(factory).isPaused());
         require(amount0Out > 0 || amount1Out > 0, "IOA"); // PairV1: INSUFFICIENT_OUTPUT_AMOUNT
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
         require(amount0Out < _reserve0 && amount1Out < _reserve1, "IL"); // PairV1: INSUFFICIENT_LIQUIDITY
@@ -546,7 +546,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
             (address _token0, address _token1) = (token0, token1);
-            uint256 _tradingFees = LeetSwapV2Factory(factory).tradingFees(
+            uint256 _tradingFees = ILeetSwapV2Factory(factory).tradingFees(
                 address(this),
                 to
             );
@@ -636,7 +636,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         address to
     ) public view returns (uint256) {
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
-        uint256 _tradingFees = LeetSwapV2Factory(factory).tradingFees(
+        uint256 _tradingFees = ILeetSwapV2Factory(factory).tradingFees(
             address(this),
             to
         );
