@@ -37,18 +37,13 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
         uint256
     );
 
-    constructor(
-        ILeetSwapV2Burnables _burnables,
-        address _protocolFeesRecipient,
-        ITurnstile _turnstile,
-        uint256 _csrTokenID
-    ) {
+    constructor(ILeetSwapV2Burnables _burnables, ITurnstile _turnstile) {
         pauser = msg.sender;
         isPaused = false;
         burnables = _burnables;
         turnstile = _turnstile;
-        turnstile.assign(_csrTokenID);
-        protocolFeesRecipient = _protocolFeesRecipient;
+        turnstile.register(msg.sender);
+        protocolFeesRecipient = msg.sender;
         _tradingFees = 30;
         protocolFeesShare = 0;
     }
