@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import "./interfaces/ILeetSwapV2Factory.sol";
 import "./interfaces/ILeetSwapV2Pair.sol";
 import "./interfaces/IWCANTO.sol";
+import "./interfaces/IBaseV1Factory.sol";
 import "./interfaces/ILiquidityManageable.sol";
 import "./libraries/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -18,9 +19,12 @@ contract LeetSwapV2Router01 is Ownable {
 
     address public immutable factory;
     IWCANTO public immutable wcanto;
+    IBaseV1Factory public immutable cantoDEXFactory;
+
     uint256 internal constant MINIMUM_LIQUIDITY = 10**3;
     bytes32 immutable pairCodeHash;
     mapping(address => bool) public stablePairs;
+    mapping(address => mapping(address => bool)) public useCantoDEXForTokens;
 
     error TradeExpired();
     error InsufficientOutputAmount();
@@ -41,8 +45,13 @@ contract LeetSwapV2Router01 is Ownable {
         _;
     }
 
-    constructor(address _factory, address _wcanto) {
+    constructor(
+        address _factory,
+        address _wcanto,
+        address _cantoDEXFactory
+    ) {
         factory = _factory;
+        cantoDEXFactory = IBaseV1Factory(_cantoDEXFactory);
         pairCodeHash = ILeetSwapV2Factory(_factory).pairCodeHash();
         wcanto = IWCANTO(_wcanto);
 
@@ -100,11 +109,12 @@ contract LeetSwapV2Router01 is Ownable {
         if (token0 == address(0)) revert ZeroAddress();
     }
 
-    function _pairFor(
+    // calculates the CREATE2 address for a pair without making any external calls
+    function pairForLeetSwapV2(
         address tokenA,
         address tokenB,
         bool stable
-    ) internal view returns (address pair) {
+    ) public view returns (address pair) {
         (address token0, address token1) = sortTokens(tokenA, tokenB);
         pair = address(
             uint160(
@@ -122,30 +132,22 @@ contract LeetSwapV2Router01 is Ownable {
         );
     }
 
-    // calculates the CREATE2 address for a pair without making any external calls
     function pairFor(address tokenA, address tokenB)
         public
         view
         returns (address pair)
     {
+        bool isStable;
         (address token0, address token1) = sortTokens(tokenA, tokenB);
-        bool isStable = stablePairs[_pairFor(token0, token1, true)];
-        pair = address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            hex"ff",
-                            factory,
-                            keccak256(
-                                abi.encodePacked(token0, token1, isStable)
-                            ),
-                            pairCodeHash // init code hash
-                        )
-                    )
-                )
-            )
-        );
+        if (useCantoDEXForTokens[token0][token1]) {
+            isStable = stablePairs[
+                cantoDEXFactory.getPair(token0, token1, true)
+            ];
+            pair = cantoDEXFactory.getPair(token0, token1, isStable);
+        } else {
+            isStable = stablePairs[pairForLeetSwapV2(token0, token1, true)];
+            pair = pairForLeetSwapV2(token0, token1, isStable);
+        }
     }
 
     // fetches and sorts the reserves for a pair
@@ -680,6 +682,31 @@ contract LeetSwapV2Router01 is Ownable {
         if (pairs.length != stable.length) revert ArrayLengthMismatch();
         for (uint256 i = 0; i < pairs.length; i++) {
             stablePairs[pairs[i]] = stable[i];
+        }
+    }
+
+    function setCantoDEXForTokens(
+        address tokenA,
+        address tokenB,
+        bool useCantoDEX
+    ) external onlyOwner {
+        useCantoDEXForTokens[tokenA][tokenB] = useCantoDEX;
+        useCantoDEXForTokens[tokenB][tokenA] = useCantoDEX;
+    }
+
+    function setCantoDEXForTokens(
+        address[] calldata tokenA,
+        address[] calldata tokenB,
+        bool[] calldata useCantoDEX
+    ) external onlyOwner {
+        if (
+            tokenA.length != tokenB.length ||
+            tokenA.length != useCantoDEX.length ||
+            tokenB.length != useCantoDEX.length
+        ) revert ArrayLengthMismatch();
+        for (uint256 i = 0; i < tokenA.length; i++) {
+            useCantoDEXForTokens[tokenA[i]][tokenB[i]] = useCantoDEX[i];
+            useCantoDEXForTokens[tokenB[i]][tokenA[i]] = useCantoDEX[i];
         }
     }
 }
