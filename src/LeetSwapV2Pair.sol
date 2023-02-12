@@ -27,7 +27,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
     mapping(address => uint256) public nonces;
 
-    uint256 internal constant MINIMUM_LIQUIDITY = 10**3;
+    uint256 public constant MINIMUM_LIQUIDITY = 10**3;
 
     address public immutable token0;
     address public immutable token1;
