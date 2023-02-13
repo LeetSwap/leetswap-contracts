@@ -70,26 +70,43 @@ contract LeetSwapV2Router01 is Ownable {
     // and the hefty amount of parameters and local variables of the Uniswap liquidity functions
 
     // it's safe to naively call the functions because if any of the token don't implement the interface
-    // or if the router is not a liquidity manager, the call will silently fail with no harm and without
-    // having to waste gas to check for the support of the standard
+    // or if the router is not a liquidity manager, the call will silently fail with no harm
     function _startLiquidityManagement(address tokenA, address tokenB)
         internal
     {
         ILiquidityManageable lmTokenA = ILiquidityManageable(tokenA);
         ILiquidityManageable lmTokenB = ILiquidityManageable(tokenB);
 
-        try lmTokenA.setLiquidityManagementPhase(true) {} catch {}
-        try lmTokenB.setLiquidityManagementPhase(true) {} catch {}
+        try lmTokenA.isLiquidityManager(address(this)) returns (
+            bool isLiquidityManager
+        ) {
+            if (isLiquidityManager) lmTokenA.setLiquidityManagementPhase(true);
+        } catch {}
+
+        try lmTokenB.isLiquidityManager(address(this)) returns (
+            bool isLiquidityManager
+        ) {
+            if (isLiquidityManager) lmTokenB.setLiquidityManagementPhase(true);
+        } catch {}
     }
 
-    // if the previous 'start' call failed, nothing will happen here, still silently fail, whereas if it
-    // succeeded, the liquidity management phase will be set to false
+    // if the previous 'startPhase' call failed because the router is not a LM, nothing will happen here,
+    // still silently fail, whereas if it succeeded, the liquidity management phase will be set to false
     function _stopLiquidityManagement(address tokenA, address tokenB) internal {
         ILiquidityManageable lmTokenA = ILiquidityManageable(tokenA);
         ILiquidityManageable lmTokenB = ILiquidityManageable(tokenB);
 
-        try lmTokenA.setLiquidityManagementPhase(false) {} catch {}
-        try lmTokenB.setLiquidityManagementPhase(false) {} catch {}
+        try lmTokenA.isLiquidityManager(address(this)) returns (
+            bool isLiquidityManager
+        ) {
+            if (isLiquidityManager) lmTokenA.setLiquidityManagementPhase(false);
+        } catch {}
+
+        try lmTokenB.isLiquidityManager(address(this)) returns (
+            bool isLiquidityManager
+        ) {
+            if (isLiquidityManager) lmTokenB.setLiquidityManagementPhase(false);
+        } catch {}
     }
 
     // UniswapV2 compatibility
