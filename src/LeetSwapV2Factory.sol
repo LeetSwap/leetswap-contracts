@@ -43,7 +43,7 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
         isPaused = false;
         turnstile = _turnstile;
         turnstile.register(msg.sender);
-        burnables = new LeetSwapV2Burnables();
+        burnables = new LeetSwapV2Burnables(turnstile);
         Ownable(address(burnables)).transferOwnership(msg.sender);
         protocolFeesRecipient = msg.sender;
         _tradingFees = 30;

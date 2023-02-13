@@ -106,10 +106,16 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
             msg.sender
         ).getInitializable();
         (token0, token1, stable) = (_token0, _token1, _stable);
+
+        ITurnstile turnstile = ILeetSwapV2Factory(factory).turnstile();
+        uint256 csrTokenID = turnstile.getTokenId(factory);
+        turnstile.assign(csrTokenID);
+
         fees = address(
             new LeetSwapV2Fees(
                 _token0,
                 _token1,
+                turnstile,
                 ILeetSwapV2Factory(factory).burnables()
             )
         );
@@ -118,10 +124,6 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         decimals1 = 10**IERC20Metadata(_token1).decimals();
 
         observations.push(Observation(block.timestamp, 0, 0));
-
-        ITurnstile turnstile = ILeetSwapV2Factory(factory).turnstile();
-        uint256 csrTokenID = turnstile.getTokenId(factory);
-        turnstile.assign(csrTokenID);
     }
 
     function name() public view returns (string memory) {

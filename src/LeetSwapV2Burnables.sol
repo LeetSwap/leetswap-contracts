@@ -12,9 +12,8 @@ contract LeetSwapV2Burnables is ILeetSwapV2Burnables, Ownable {
 
     mapping(address => uint256) public burnableSharesBps;
 
-    constructor() {
+    constructor(ITurnstile turnstile) {
         factory = msg.sender;
-        ITurnstile turnstile = ILeetSwapV2Factory(factory).turnstile();
         uint256 csrTokenID = turnstile.getTokenId(factory);
         turnstile.assign(csrTokenID);
     }

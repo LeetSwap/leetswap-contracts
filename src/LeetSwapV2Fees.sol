@@ -17,6 +17,7 @@ contract LeetSwapV2Fees {
     constructor(
         address _token0,
         address _token1,
+        ITurnstile turnstile,
         ILeetSwapV2Burnables _burnables
     ) {
         pair = msg.sender;
@@ -24,9 +25,7 @@ contract LeetSwapV2Fees {
         token1 = _token1;
         burnables = _burnables;
 
-        address factory = ILeetSwapV2Pair(pair).factory();
-        ITurnstile turnstile = ILeetSwapV2Factory(factory).turnstile();
-        uint256 csrTokenID = turnstile.getTokenId(factory);
+        uint256 csrTokenID = turnstile.getTokenId(pair);
         turnstile.assign(csrTokenID);
     }
 
