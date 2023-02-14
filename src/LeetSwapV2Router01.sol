@@ -214,6 +214,17 @@ contract LeetSwapV2Router01 is Ownable {
         }
     }
 
+    // UniswapV2 compatibility
+    function getAmountsOut(uint256 amountIn, address[] calldata path)
+        public
+        view
+        returns (uint256[] memory amounts)
+    {
+        if (path.length < 2) revert InvalidPath();
+        Route[] memory routes = _pathToRoutes(path);
+        amounts = getAmountsOut(amountIn, routes);
+    }
+
     // given some amount of an asset and pair reserves, returns an equivalent amount of the other asset
     function quoteLiquidity(
         uint256 amountA,
