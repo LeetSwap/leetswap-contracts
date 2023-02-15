@@ -7,7 +7,7 @@ import "../src/LeetSwapV1Router02.sol";
 import "forge-std/Test.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-contract Deploy is Test {
+contract DeployDEXV1 is Test {
     using Strings for uint256;
 
     function setUp() public view {

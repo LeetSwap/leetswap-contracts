@@ -66,10 +66,10 @@ run-forge-script name func="run()" *args="":
     --broadcast \
     -vvvv {{args}}
 
-deploy-router:
+deploy-dex-v2:
     #!/bin/sh
 
-    just run-forge-script Deploy
+    just run-forge-script DeployDEXV2
 
 turnstile-withdraw turnstile-address token-id:
     #!/bin/sh
