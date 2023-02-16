@@ -68,4 +68,6 @@ interface ILeetSwapV2Pair {
         uint256 amountIn,
         uint256 granularity
     ) external view returns (uint256);
+
+    function claimFees() external returns (uint256 claimed0, uint256 claimed1);
 }
