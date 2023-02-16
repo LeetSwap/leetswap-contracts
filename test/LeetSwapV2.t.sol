@@ -359,14 +359,24 @@ contract TestLeetSwapV2 is Test {
         assertEq(IERC20(pair).balanceOf(address(this)), liquidity);
         LeetSwapV2Pair(pair).approve(address(router), type(uint256).max);
 
+        uint256 pairMinimumLiquidity = LeetSwapV2Pair(pair).MINIMUM_LIQUIDITY();
         router.removeLiquidity(
             address(token0),
             address(token1),
             liquidity,
-            amount0 - LeetSwapV2Pair(pair).MINIMUM_LIQUIDITY(),
-            amount1 - LeetSwapV2Pair(pair).MINIMUM_LIQUIDITY(),
+            amount0 - pairMinimumLiquidity,
+            amount1 - pairMinimumLiquidity,
             address(this),
             block.timestamp + 1
+        );
+
+        assertEq(
+            token0.balanceOf(address(this)),
+            10 ether - pairMinimumLiquidity
+        );
+        assertEq(
+            token1.balanceOf(address(this)),
+            10 ether - pairMinimumLiquidity
         );
     }
 
@@ -514,6 +524,73 @@ contract TestLeetSwapV2 is Test {
         assertEq(token1.balanceOf(address(pair)), 1 ether);
         assertEq(token0Tax.balanceOf(address(this)), 9 ether);
         assertEq(token1.balanceOf(address(this)), 9 ether);
+    }
+
+    function testRemoveLiquidityTaxToken() public {
+        token0Tax.approve(address(router), 1 ether);
+        token1.approve(address(router), 1 ether);
+
+        (, , uint256 liquidity) = router.addLiquidity(
+            address(token0Tax),
+            address(token1),
+            1 ether,
+            1 ether,
+            1 ether,
+            1 ether,
+            address(this),
+            block.timestamp + 1
+        );
+
+        address pair = factory.getPair(
+            address(token0Tax),
+            address(token1),
+            false
+        );
+        uint256 reserve0 = token0Tax.balanceOf(pair);
+        uint256 reserve1 = token1.balanceOf(pair);
+
+        assertEq(IERC20(pair).balanceOf(address(this)), liquidity);
+        LeetSwapV2Pair(pair).approve(address(router), type(uint256).max);
+
+        uint256 pairMinimumLiquidity = LeetSwapV2Pair(pair).MINIMUM_LIQUIDITY();
+        uint256 taxAmount = ((reserve0 - pairMinimumLiquidity) * taxRate) /
+            taxDivisor;
+        router.removeLiquidity(
+            address(token0Tax),
+            address(token1),
+            liquidity,
+            reserve0 - pairMinimumLiquidity,
+            reserve1 - pairMinimumLiquidity - taxAmount,
+            address(this),
+            block.timestamp + 1
+        );
+    }
+
+    function testAddLiquidityETHTaxToken() public {
+        token0Tax.approve(address(router), 1 ether);
+
+        address pair = router.pairFor(address(token0Tax), address(weth));
+
+        (uint256 amount0, uint256 amount1, ) = router.addLiquidityETH{
+            value: 1 ether
+        }(
+            address(token0Tax),
+            1 ether,
+            1 ether,
+            1 ether,
+            address(this),
+            block.timestamp + 1
+        );
+
+        assertEq(amount0, 1 ether); // don't subtract tax cuz it gets calculated before subtracting the fee
+        assertEq(amount1, 1 ether);
+
+        assertEq(
+            factory.getPair(address(token0Tax), address(weth), false),
+            pair
+        );
+        assertEq(LeetSwapV2Pair(pair).token0(), address(token0Tax));
+        assertEq(LeetSwapV2Pair(pair).token1(), address(weth));
     }
 
     function testSwapExactTokensForTokens() public {
