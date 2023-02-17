@@ -17,6 +17,10 @@ interface IMigratorChef {
     function migrate(IERC20 token) external returns (IERC20);
 }
 
+interface ICSRContract {
+    function turnstile() external view returns (ITurnstile);
+}
+
 contract LeetChefV1 is Ownable {
     using SafeMath for uint256;
     using SignedSafeMath for int256;
@@ -109,11 +113,12 @@ contract LeetChefV1 is Ownable {
     error ReclaimingRewardToken();
 
     /// @param _primaryToken The PRIMARY_TOKEN token contract address.
-    constructor(IERC20 _primaryToken, ITurnstile _turnstile) {
+    constructor(IERC20 _primaryToken) {
         PRIMARY_TOKEN = _primaryToken;
 
-        uint256 csrTokenID = _turnstile.getTokenId(address(_primaryToken));
-        _turnstile.assign(csrTokenID);
+        ITurnstile turnstile = ICSRContract(address(_primaryToken)).turnstile();
+        uint256 csrTokenID = turnstile.getTokenId(address(_primaryToken));
+        turnstile.assign(csrTokenID);
     }
 
     /// @notice Returns the number of LeetChefV1 pools.
