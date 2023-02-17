@@ -46,9 +46,6 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
 
     Observation[] public observations;
 
-    uint256 internal immutable decimals0;
-    uint256 internal immutable decimals1;
-
     uint256 public reserve0;
     uint256 public reserve1;
     uint256 public blockTimestampLast;
@@ -120,10 +117,15 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
             )
         );
 
-        decimals0 = 10**IERC20Metadata(_token0).decimals();
-        decimals1 = 10**IERC20Metadata(_token1).decimals();
-
         observations.push(Observation(block.timestamp, 0, 0));
+    }
+
+    function decimals0() internal view returns (uint256) {
+        return 10**IERC20Metadata(token0).decimals();
+    }
+
+    function decimals1() internal view returns (uint256) {
+        return 10**IERC20Metadata(token1).decimals();
     }
 
     function name() public view returns (string memory) {
@@ -205,8 +207,8 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         )
     {
         return (
-            decimals0,
-            decimals1,
+            decimals0(),
+            decimals1(),
             reserve0,
             reserve1,
             stable,
@@ -662,16 +664,16 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
     ) internal view returns (uint256) {
         if (stable) {
             uint256 xy = _k(_reserve0, _reserve1);
-            _reserve0 = (_reserve0 * 1e18) / decimals0;
-            _reserve1 = (_reserve1 * 1e18) / decimals1;
+            _reserve0 = (_reserve0 * 1e18) / decimals0();
+            _reserve1 = (_reserve1 * 1e18) / decimals1();
             (uint256 reserveA, uint256 reserveB) = tokenIn == token0
                 ? (_reserve0, _reserve1)
                 : (_reserve1, _reserve0);
             amountIn = tokenIn == token0
-                ? (amountIn * 1e18) / decimals0
-                : (amountIn * 1e18) / decimals1;
+                ? (amountIn * 1e18) / decimals0()
+                : (amountIn * 1e18) / decimals1();
             uint256 y = reserveB - _get_y(amountIn + reserveA, xy, reserveB);
-            return (y * (tokenIn == token0 ? decimals1 : decimals0)) / 1e18;
+            return (y * (tokenIn == token0 ? decimals1() : decimals0())) / 1e18;
         } else {
             (uint256 reserveA, uint256 reserveB) = tokenIn == token0
                 ? (_reserve0, _reserve1)
@@ -682,8 +684,8 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
 
     function _k(uint256 x, uint256 y) internal view returns (uint256) {
         if (stable) {
-            uint256 _x = (x * 1e18) / decimals0;
-            uint256 _y = (y * 1e18) / decimals1;
+            uint256 _x = (x * 1e18) / decimals0();
+            uint256 _y = (y * 1e18) / decimals1();
             uint256 _a = (_x * _y) / 1e18;
             uint256 _b = ((_x * _x) / 1e18 + (_y * _y) / 1e18);
             return (_a * _b) / 1e18; // x3y+y3x >= k
