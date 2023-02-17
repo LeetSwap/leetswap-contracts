@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import "./interfaces/ILeetSwapV2Factory.sol";
 import "./interfaces/ILeetSwapV2Pair.sol";
+import "./interfaces/ILeetSwapV2Router01.sol";
 import "@leetswap/interfaces/IWCANTO.sol";
 import "@leetswap/interfaces/ILiquidityManageable.sol";
 import "@leetswap/libraries/Math.sol";
@@ -10,7 +11,7 @@ import "@leetswap/dex/native/interfaces/IBaseV1Factory.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract LeetSwapV2Router01 is Ownable {
+contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
     struct Route {
         address from;
         address to;
