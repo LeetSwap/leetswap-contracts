@@ -27,6 +27,10 @@ interface ILeetSwapV2Factory {
         bool stable
     ) external returns (address);
 
+    function createPair(address tokenA, address tokenB)
+        external
+        returns (address);
+
     function getInitializable()
         external
         view
