@@ -75,8 +75,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         stakingFeeRecipient = owner();
         treasuryFeeRecipient = owner();
 
-        isLiquidityManager[owner()] = true;
-        setLiquidityManager(address(router), true);
+        isLiquidityManager[address(router)] = true;
 
         address pair = factory.createPair(address(this), router.WETH());
         isLeetPair[pair] = true;
