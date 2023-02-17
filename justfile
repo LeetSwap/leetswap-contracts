@@ -76,6 +76,31 @@ deploy-leet-token router:
 
     just run-forge-script DeployLeetToken "run(address)" {{router}}
 
+deploy-leetchef-v1 leet:
+    #!/bin/sh
+
+    just run-forge-script DeployLeetChefV1 "run(address)" {{leet}}
+
+leetchef-v1-add-lp-token leetchef lp-token alloc-points:
+    #!/bin/sh
+
+    just run-forge-script ManageLeetChefV1 "addLPToken(address,address,uint256)" {{leetchef}} {{lp-token}} {{alloc-points}}
+
+leetchef-v1-set-emissions-per-second leetchef emissions:
+    #!/bin/sh
+
+    just run-forge-script ManageLeetChefV1 "setEmissionsPerSecond(address,uint256)" {{leetchef}} {{emissions}}
+
+deploy-leetbar leet:
+    #!/bin/sh
+
+    just run-forge-script DeployLeetBar "run(address)" {{leet}}
+
+leetbar-enter leetbar amount:
+    #!/bin/sh
+
+    just run-forge-script ManageLeetBar "enter(address,uint256)" {{leetbar}} {{amount}}
+
 turnstile-withdraw turnstile-address token-id:
     #!/bin/sh
 
