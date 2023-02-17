@@ -192,10 +192,14 @@ contract LeetChefV1 is Ownable {
 
     /// @notice Sets the primaryToken per second to be distributed. Can only be called by the owner.
     /// @param _primaryTokenPerSecond The amount of PrimaryToken to be distributed per second.
-    function setPrimaryTokenPerSecond(uint256 _primaryTokenPerSecond)
-        public
-        onlyOwner
-    {
+    /// @param _withUpdate True if all pools should be updated prior to setting the new primaryTokenPerSecond.
+    function setPrimaryTokenPerSecond(
+        uint256 _primaryTokenPerSecond,
+        bool _withUpdate
+    ) public onlyOwner {
+        if (_withUpdate) {
+            massUpdatePools();
+        }
         primaryTokenPerSecond = _primaryTokenPerSecond;
         emit LogPrimaryTokenPerSecond(_primaryTokenPerSecond);
     }
