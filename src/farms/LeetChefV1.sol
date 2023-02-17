@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import {IRewarder} from "./interfaces/IRewarder.sol";
 import {ILeetSwapV2Pair} from "@leetswap/dex/v2/interfaces/ILeetSwapV2Pair.sol";
+import {ITurnstile} from "@leetswap/interfaces/ITurnstile.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -108,8 +109,11 @@ contract LeetChefV1 is Ownable {
     error ReclaimingRewardToken();
 
     /// @param _primaryToken The PRIMARY_TOKEN token contract address.
-    constructor(IERC20 _primaryToken) {
+    constructor(IERC20 _primaryToken, ITurnstile _turnstile) {
         PRIMARY_TOKEN = _primaryToken;
+
+        uint256 csrTokenID = _turnstile.getTokenId(address(_primaryToken));
+        _turnstile.assign(csrTokenID);
     }
 
     /// @notice Returns the number of LeetChefV1 pools.
