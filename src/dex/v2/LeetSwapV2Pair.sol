@@ -133,7 +133,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
             return
                 string(
                     abi.encodePacked(
-                        "StableV1 AMM - ",
+                        "LeetSwapV2 StableV1 Pair - ",
                         IERC20Metadata(token0).symbol(),
                         "/",
                         IERC20Metadata(token1).symbol()
@@ -144,7 +144,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         return
             string(
                 abi.encodePacked(
-                    "VolatileV1 AMM - ",
+                    "LeetSwapV2 VolatileV1 Pair - ",
                     IERC20Metadata(token0).symbol(),
                     "/",
                     IERC20Metadata(token1).symbol()
@@ -157,7 +157,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
             return
                 string(
                     abi.encodePacked(
-                        "sAMM-",
+                        "sLS2-",
                         IERC20Metadata(token0).symbol(),
                         "/",
                         IERC20Metadata(token1).symbol()
@@ -168,7 +168,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         return
             string(
                 abi.encodePacked(
-                    "vAMM-",
+                    "vLS2-",
                     IERC20Metadata(token0).symbol(),
                     "/",
                     IERC20Metadata(token1).symbol()
