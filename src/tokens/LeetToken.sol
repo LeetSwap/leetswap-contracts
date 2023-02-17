@@ -46,10 +46,8 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     error InvalidFeeRecipient();
     error NotLiquidityManager();
 
-    constructor() ERC20("Leet", "LEET") {
-        ILeetSwapV2Router01 router = ILeetSwapV2Router01(
-            0xDB6677280C65d6d69AF06D655198c68389cDa2Aa
-        );
+    constructor(address _router) ERC20("Leet", "LEET") {
+        ILeetSwapV2Router01 router = ILeetSwapV2Router01(_router);
         ILeetSwapV2Factory factory = ILeetSwapV2Factory(router.factory());
         turnstile = factory.turnstile();
         uint256 csrTokenID = turnstile.getTokenId(address(factory));

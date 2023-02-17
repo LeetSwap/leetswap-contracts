@@ -71,6 +71,11 @@ deploy-dex-v2:
 
     just run-forge-script DeployDEXV2
 
+deploy-leet-token router:
+    #!/bin/sh
+
+    just run-forge-script DeployLeetToken "run(address)" {{router}}
+
 turnstile-withdraw turnstile-address token-id:
     #!/bin/sh
 
