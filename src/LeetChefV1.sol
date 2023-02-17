@@ -160,8 +160,12 @@ contract LeetChefV1 is Ownable {
         uint256 _pid,
         uint256 _allocPoint,
         IRewarder _rewarder,
-        bool overwrite
+        bool overwrite,
+        bool _withUpdate
     ) public onlyOwner {
+        if (_withUpdate) {
+            massUpdatePools();
+        }
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(
             _allocPoint
         );
@@ -243,12 +247,20 @@ contract LeetChefV1 is Ownable {
         ).sub(user.rewardDebt).toUint256();
     }
 
-    /// @notice Update reward variables for all pools. Be careful of gas spending!
+    /// @notice Update reward variables for multiple pools. Be careful of gas spending!
     /// @param pids Pool IDs of all to be updated. Make sure to update all active pools.
     function massUpdatePools(uint256[] calldata pids) external {
         uint256 len = pids.length;
         for (uint256 i = 0; i < len; ++i) {
             updatePool(pids[i]);
+        }
+    }
+
+    /// @notice Update reward variables for all pools. Be careful of gas spending!
+    function massUpdatePools() public {
+        uint256 len = poolInfo.length;
+        for (uint256 i = 0; i < len; ++i) {
+            updatePool(i);
         }
     }
 
