@@ -76,6 +76,11 @@ deploy-leet-token router:
 
     just run-forge-script DeployLeetToken "run(address)" {{router}}
 
+leet-token-add-pair leet pair:
+    #!/bin/sh
+
+    just run-forge-script ManageLeetToken "addPair(address,address)" {{leet}} {{pair}}
+
 deploy-leetchef-v1 leet:
     #!/bin/sh
 
