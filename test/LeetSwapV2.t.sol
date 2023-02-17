@@ -3,12 +3,12 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
 
-import "../src/LeetSwapV2Router01.sol";
-import "../src/LeetSwapV2Factory.sol";
-import "../src/LeetSwapV2Pair.sol";
-import "../src/interfaces/IWCANTO.sol";
-import "../src/interfaces/IBaseV1Factory.sol";
-import "../src/interfaces/IBaseV1Router01.sol";
+import "@leetswap/dex/v2/LeetSwapV2Router01.sol";
+import "@leetswap/dex/v2/LeetSwapV2Factory.sol";
+import "@leetswap/dex/v2/LeetSwapV2Pair.sol";
+import "@leetswap/interfaces/IWCANTO.sol";
+import "@leetswap/dex/native/interfaces/IBaseV1Factory.sol";
+import "@leetswap/dex/native/interfaces/IBaseV1Router01.sol";
 import "../script/DeployDEXV2.s.sol";
 
 import {MockERC20LiquidityManageable} from "./doubles/MockERC20LiquidityManageable.sol";

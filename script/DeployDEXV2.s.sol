@@ -1,10 +1,10 @@
 // SPDX-License-Identifier:AGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import "../src/LeetSwapV2Factory.sol";
-import "../src/LeetSwapV2Router01.sol";
-import "../src/interfaces/ITurnstile.sol";
 import "forge-std/Test.sol";
+import "@leetswap/dex/v2/LeetSwapV2Factory.sol";
+import "@leetswap/dex/v2/LeetSwapV2Router01.sol";
+import "@leetswap/interfaces/ITurnstile.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract DeployDEXV2 is Test {

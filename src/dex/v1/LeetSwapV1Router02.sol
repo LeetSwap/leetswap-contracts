@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-import "./interfaces/IWCANTO.sol";
-import "./interfaces/IBaseV1Factory.sol";
-import "./interfaces/IBaseV1Pair.sol";
-import "./BaseV1-libs.sol";
+import "@leetswap/interfaces/IWCANTO.sol";
+import "@leetswap/dex/native/interfaces/IBaseV1Factory.sol";
+import "@leetswap/dex/native/interfaces/IBaseV1Pair.sol";
+import "@leetswap/interfaces/ITurnstile.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract LeetSwapV1Router01 is Ownable {
+contract LeetSwapV1Router02 is Ownable {
     struct Route {
         address from;
         address to;
@@ -16,6 +17,7 @@ contract LeetSwapV1Router01 is Ownable {
 
     address public immutable factory;
     IWCANTO public immutable wcanto;
+    ITurnstile public turnstile;
     uint256 internal constant MINIMUM_LIQUIDITY = 10**3;
     bytes32 immutable pairCodeHash;
     mapping(address => bool) public stablePairs;
@@ -39,10 +41,15 @@ contract LeetSwapV1Router01 is Ownable {
         _;
     }
 
-    constructor(address _factory, address _wcanto) {
+    constructor(
+        address _factory,
+        address _wcanto,
+        address _turnstile
+    ) {
         factory = _factory;
         pairCodeHash = IBaseV1Factory(_factory).pairCodeHash();
         wcanto = IWCANTO(_wcanto);
+        turnstile = ITurnstile(_turnstile);
     }
 
     receive() external payable {
@@ -612,5 +619,22 @@ contract LeetSwapV1Router01 is Ownable {
         for (uint256 i = 0; i < pairs.length; i++) {
             stablePairs[pairs[i]] = stable[i];
         }
+    }
+
+    // **** CSR FUNCTIONS ****
+    function setTurnstile(address _turnstile) external onlyOwner {
+        turnstile = ITurnstile(_turnstile);
+    }
+
+    function registerCSR() external onlyOwner returns (uint256) {
+        return turnstile.register(msg.sender);
+    }
+
+    function assignCSR(uint256 beneficiaryTokenID)
+        external
+        onlyOwner
+        returns (uint256)
+    {
+        return turnstile.assign(beneficiaryTokenID);
     }
 }

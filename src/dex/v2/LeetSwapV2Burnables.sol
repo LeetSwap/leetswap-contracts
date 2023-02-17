@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "./interfaces/ILeetSwapV2Factory.sol";
 import "./interfaces/ILeetSwapV2Burnables.sol";
-import "./interfaces/ITurnstile.sol";
+import "@leetswap/interfaces/ITurnstile.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 

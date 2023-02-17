@@ -5,7 +5,7 @@ import "./LeetSwapV2Pair.sol";
 import "./LeetSwapV2Burnables.sol";
 import "./interfaces/ILeetSwapV2Factory.sol";
 import "./interfaces/ITradingFeesOracle.sol";
-import "./interfaces/ITurnstile.sol";
+import "@leetswap/interfaces/ITurnstile.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {

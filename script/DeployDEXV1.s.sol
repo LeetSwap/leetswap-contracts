@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import "../src/BaseV1-core.sol";
-import "../src/LeetSwapV1Router01.sol";
-import "../src/LeetSwapV1Router02.sol";
 import "forge-std/Test.sol";
+import "@leetswap/dex/native/BaseV1-core.sol";
+import {LeetSwapV1Router01} from "@leetswap/dex/v1/LeetSwapV1Router01.sol";
+import {LeetSwapV1Router02} from "@leetswap/dex/v1/LeetSwapV1Router02.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract DeployDEXV1 is Test {

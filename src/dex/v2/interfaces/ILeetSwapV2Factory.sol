@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity 0.8.17;
+pragma solidity ^0.8.0;
 
 import "./ILeetSwapV2Burnables.sol";
-import "./ITurnstile.sol";
+import "@leetswap/interfaces/ITurnstile.sol";
 
 interface ILeetSwapV2Factory {
     function turnstile() external view returns (ITurnstile);

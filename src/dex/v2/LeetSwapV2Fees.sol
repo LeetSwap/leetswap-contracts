@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import "./interfaces/ILeetSwapV2Burnables.sol";
 import "./interfaces/ILeetSwapV2Factory.sol";
 import "./interfaces/ILeetSwapV2Pair.sol";
-import "./interfaces/ITurnstile.sol";
+import "@leetswap/interfaces/ITurnstile.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Base V1 Fees contract is used as a 1:1 pair relationship to split out fees, this ensures that the curve does not need to be modified for LP shares

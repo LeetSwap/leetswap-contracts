@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity 0.8.17;
+pragma solidity ^0.8.0;
 
-import "./IWCANTO.sol";
+import "@leetswap/interfaces/IWCANTO.sol";
 
 interface IBaseV1Router01 {
     struct route {

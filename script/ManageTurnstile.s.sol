@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import "../src/interfaces/ITurnstile.sol";
 import "forge-std/Test.sol";
+import "@leetswap/interfaces/ITurnstile.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract ManageTurnstile is Test {

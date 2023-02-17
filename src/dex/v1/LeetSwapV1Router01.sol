@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-import "./interfaces/ILeetSwapV2Factory.sol";
-import "./interfaces/ILeetSwapV2Pair.sol";
-import "./interfaces/IWCANTO.sol";
-import "./interfaces/IBaseV1Factory.sol";
-import "./interfaces/ILiquidityManageable.sol";
-import "./libraries/Math.sol";
+import "@leetswap/interfaces/IWCANTO.sol";
+import "@leetswap/dex/native/interfaces/IBaseV1Factory.sol";
+import "@leetswap/dex/native/interfaces/IBaseV1Pair.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract LeetSwapV2Router01 is Ownable {
+contract LeetSwapV1Router01 is Ownable {
     struct Route {
         address from;
         address to;
@@ -19,12 +16,9 @@ contract LeetSwapV2Router01 is Ownable {
 
     address public immutable factory;
     IWCANTO public immutable wcanto;
-    IBaseV1Factory public immutable cantoDEXFactory;
-
     uint256 internal constant MINIMUM_LIQUIDITY = 10**3;
     bytes32 immutable pairCodeHash;
     mapping(address => bool) public stablePairs;
-    mapping(address => mapping(address => bool)) public useCantoDEXForTokens;
 
     error TradeExpired();
     error InsufficientOutputAmount();
@@ -45,73 +39,14 @@ contract LeetSwapV2Router01 is Ownable {
         _;
     }
 
-    constructor(
-        address _factory,
-        address _wcanto,
-        address _cantoDEXFactory
-    ) {
+    constructor(address _factory, address _wcanto) {
         factory = _factory;
-        cantoDEXFactory = IBaseV1Factory(_cantoDEXFactory);
-        pairCodeHash = ILeetSwapV2Factory(_factory).pairCodeHash();
+        pairCodeHash = IBaseV1Factory(_factory).pairCodeHash();
         wcanto = IWCANTO(_wcanto);
-
-        ITurnstile turnstile = ILeetSwapV2Factory(factory).turnstile();
-        uint256 csrTokenID = turnstile.getTokenId(factory);
-        turnstile.assign(csrTokenID);
     }
 
     receive() external payable {
         assert(msg.sender == address(wcanto)); // only accept ETH via fallback from the wcanto contract
-    }
-
-    // **** LIQUIDITY MANAGEABLE PROTOCOL ****
-    //
-    // we use the following functions because we can't use modifiers due to the stack size limit
-    // and the hefty amount of parameters and local variables of the Uniswap liquidity functions
-
-    // it's safe to naively call the functions because if any of the token don't implement the interface
-    // or if the router is not a liquidity manager, the call will silently fail with no harm
-    function _startLiquidityManagement(address tokenA, address tokenB)
-        internal
-    {
-        ILiquidityManageable lmTokenA = ILiquidityManageable(tokenA);
-        ILiquidityManageable lmTokenB = ILiquidityManageable(tokenB);
-
-        try lmTokenA.isLiquidityManager(address(this)) returns (
-            bool isLiquidityManager
-        ) {
-            if (isLiquidityManager) lmTokenA.setLiquidityManagementPhase(true);
-        } catch {}
-
-        try lmTokenB.isLiquidityManager(address(this)) returns (
-            bool isLiquidityManager
-        ) {
-            if (isLiquidityManager) lmTokenB.setLiquidityManagementPhase(true);
-        } catch {}
-    }
-
-    // if the previous 'startPhase' call failed because the router is not a LM, nothing will happen here,
-    // still silently fail, whereas if it succeeded, the liquidity management phase will be set to false
-    function _stopLiquidityManagement(address tokenA, address tokenB) internal {
-        ILiquidityManageable lmTokenA = ILiquidityManageable(tokenA);
-        ILiquidityManageable lmTokenB = ILiquidityManageable(tokenB);
-
-        try lmTokenA.isLiquidityManager(address(this)) returns (
-            bool isLiquidityManager
-        ) {
-            if (isLiquidityManager) lmTokenA.setLiquidityManagementPhase(false);
-        } catch {}
-
-        try lmTokenB.isLiquidityManager(address(this)) returns (
-            bool isLiquidityManager
-        ) {
-            if (isLiquidityManager) lmTokenB.setLiquidityManagementPhase(false);
-        } catch {}
-    }
-
-    // UniswapV2 compatibility
-    function WETH() external view returns (address) {
-        return address(wcanto);
     }
 
     function sortTokens(address tokenA, address tokenB)
@@ -126,12 +61,11 @@ contract LeetSwapV2Router01 is Ownable {
         if (token0 == address(0)) revert ZeroAddress();
     }
 
-    // calculates the CREATE2 address for a pair without making any external calls
-    function pairForLeetSwapV2(
+    function _pairFor(
         address tokenA,
         address tokenB,
         bool stable
-    ) public view returns (address pair) {
+    ) internal view returns (address pair) {
         (address token0, address token1) = sortTokens(tokenA, tokenB);
         pair = address(
             uint160(
@@ -149,22 +83,30 @@ contract LeetSwapV2Router01 is Ownable {
         );
     }
 
+    // calculates the CREATE2 address for a pair without making any external calls
     function pairFor(address tokenA, address tokenB)
         public
         view
         returns (address pair)
     {
-        bool isStable;
         (address token0, address token1) = sortTokens(tokenA, tokenB);
-        if (useCantoDEXForTokens[token0][token1]) {
-            isStable = stablePairs[
-                cantoDEXFactory.getPair(token0, token1, true)
-            ];
-            pair = cantoDEXFactory.getPair(token0, token1, isStable);
-        } else {
-            isStable = stablePairs[pairForLeetSwapV2(token0, token1, true)];
-            pair = pairForLeetSwapV2(token0, token1, isStable);
-        }
+        bool isStable = stablePairs[_pairFor(token0, token1, true)];
+        pair = address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            hex"ff",
+                            factory,
+                            keccak256(
+                                abi.encodePacked(token0, token1, isStable)
+                            ),
+                            pairCodeHash // init code hash
+                        )
+                    )
+                )
+            )
+        );
     }
 
     // fetches and sorts the reserves for a pair
@@ -174,7 +116,7 @@ contract LeetSwapV2Router01 is Ownable {
         returns (uint256 reserveA, uint256 reserveB)
     {
         (address token0, ) = sortTokens(tokenA, tokenB);
-        (uint256 reserve0, uint256 reserve1, ) = ILeetSwapV2Pair(
+        (uint256 reserve0, uint256 reserve1, ) = IBaseV1Pair(
             pairFor(tokenA, tokenB)
         ).getReserves();
         (reserveA, reserveB) = tokenA == token0
@@ -189,8 +131,8 @@ contract LeetSwapV2Router01 is Ownable {
         address tokenOut
     ) public view returns (uint256 amount) {
         address pair = pairFor(tokenIn, tokenOut);
-        if (ILeetSwapV2Factory(factory).isPair(pair)) {
-            amount = ILeetSwapV2Pair(pair).getAmountOut(amountIn, tokenIn);
+        if (IBaseV1Factory(factory).isPair(pair)) {
+            amount = IBaseV1Pair(pair).getAmountOut(amountIn, tokenIn);
         }
     }
 
@@ -205,24 +147,13 @@ contract LeetSwapV2Router01 is Ownable {
         amounts[0] = amountIn;
         for (uint256 i = 0; i < routes.length; i++) {
             address pair = pairFor(routes[i].from, routes[i].to);
-            if (ILeetSwapV2Factory(factory).isPair(pair)) {
-                amounts[i + 1] = ILeetSwapV2Pair(pair).getAmountOut(
+            if (IBaseV1Factory(factory).isPair(pair)) {
+                amounts[i + 1] = IBaseV1Pair(pair).getAmountOut(
                     amounts[i],
                     routes[i].from
                 );
             }
         }
-    }
-
-    // UniswapV2 compatibility
-    function getAmountsOut(uint256 amountIn, address[] calldata path)
-        public
-        view
-        returns (uint256[] memory amounts)
-    {
-        if (path.length < 2) revert InvalidPath();
-        Route[] memory routes = _pathToRoutes(path);
-        amounts = getAmountsOut(amountIn, routes);
     }
 
     // given some amount of an asset and pair reserves, returns an equivalent amount of the other asset
@@ -237,7 +168,7 @@ contract LeetSwapV2Router01 is Ownable {
     }
 
     function isPair(address pair) public view returns (bool) {
-        return ILeetSwapV2Factory(factory).isPair(pair);
+        return IBaseV1Factory(factory).isPair(pair);
     }
 
     function _pathToRoutes(address[] calldata path)
@@ -268,7 +199,7 @@ contract LeetSwapV2Router01 is Ownable {
             address to = i < routes.length - 1
                 ? pairFor(routes[i + 1].from, routes[i + 1].to)
                 : _to;
-            ILeetSwapV2Pair(pairFor(routes[i].from, routes[i].to)).swap(
+            IBaseV1Pair(pairFor(routes[i].from, routes[i].to)).swap(
                 amount0Out,
                 amount1Out,
                 to,
@@ -352,7 +283,7 @@ contract LeetSwapV2Router01 is Ownable {
         for (uint256 i; i < path.length - 1; i++) {
             (address input, address output) = (path[i], path[i + 1]);
             (address token0, ) = sortTokens(input, output);
-            ILeetSwapV2Pair pair = ILeetSwapV2Pair(pairFor(input, output));
+            IBaseV1Pair pair = IBaseV1Pair(pairFor(input, output));
             uint256 amountInput;
             uint256 amountOutput;
             {
@@ -460,17 +391,9 @@ contract LeetSwapV2Router01 is Ownable {
         require(amountADesired >= amountAMin);
         require(amountBDesired >= amountBMin);
         // create the pair if it doesn"t exist yet
-        address _pair = ILeetSwapV2Factory(factory).getPair(
-            tokenA,
-            tokenB,
-            stable
-        );
+        address _pair = IBaseV1Factory(factory).getPair(tokenA, tokenB, stable);
         if (_pair == address(0)) {
-            _pair = ILeetSwapV2Factory(factory).createPair(
-                tokenA,
-                tokenB,
-                stable
-            );
+            _pair = IBaseV1Factory(factory).createPair(tokenA, tokenB, stable);
         }
         (uint256 reserveA, uint256 reserveB) = getReserves(tokenA, tokenB);
         if (reserveA == 0 && reserveB == 0) {
@@ -519,8 +442,6 @@ contract LeetSwapV2Router01 is Ownable {
             uint256 liquidity
         )
     {
-        _startLiquidityManagement(tokenA, tokenB);
-
         address pair = pairFor(tokenA, tokenB);
         bool isStable = stablePairs[pair];
         (amountA, amountB) = _addLiquidity(
@@ -534,9 +455,7 @@ contract LeetSwapV2Router01 is Ownable {
         );
         _safeTransferFrom(tokenA, msg.sender, pair, amountA);
         _safeTransferFrom(tokenB, msg.sender, pair, amountB);
-        liquidity = ILeetSwapV2Pair(pair).mint(to);
-
-        _stopLiquidityManagement(tokenA, tokenB);
+        liquidity = IBaseV1Pair(pair).mint(to);
     }
 
     function addLiquidityETH(
@@ -556,8 +475,6 @@ contract LeetSwapV2Router01 is Ownable {
             uint256 liquidity
         )
     {
-        _startLiquidityManagement(token, address(wcanto));
-
         address pair = pairFor(token, address(wcanto));
         bool isStable = stablePairs[pair];
         (amountToken, amountCANTO) = _addLiquidity(
@@ -572,13 +489,11 @@ contract LeetSwapV2Router01 is Ownable {
         _safeTransferFrom(token, msg.sender, pair, amountToken);
         wcanto.deposit{value: amountCANTO}();
         assert(wcanto.transfer(pair, amountCANTO));
-        liquidity = ILeetSwapV2Pair(pair).mint(to);
+        liquidity = IBaseV1Pair(pair).mint(to);
         // refund dust eth, if any
         if (msg.value > amountCANTO) {
             _safeTransferETH(msg.sender, msg.value - amountCANTO);
         }
-
-        _stopLiquidityManagement(token, address(wcanto));
     }
 
     function _safeTransferETH(address to, uint256 value) internal {
@@ -596,13 +511,9 @@ contract LeetSwapV2Router01 is Ownable {
         address to,
         uint256 deadline
     ) public ensure(deadline) returns (uint256 amountA, uint256 amountB) {
-        _startLiquidityManagement(tokenA, tokenB);
-
         address pair = pairFor(tokenA, tokenB);
-        require(
-            ILeetSwapV2Pair(pair).transferFrom(msg.sender, pair, liquidity)
-        ); // send liquidity to pair
-        (uint256 amount0, uint256 amount1) = ILeetSwapV2Pair(pair).burn(to);
+        require(IBaseV1Pair(pair).transferFrom(msg.sender, pair, liquidity)); // send liquidity to pair
+        (uint256 amount0, uint256 amount1) = IBaseV1Pair(pair).burn(to);
         (address token0, ) = sortTokens(tokenA, tokenB);
         (amountA, amountB) = tokenA == token0
             ? (amount0, amount1)
@@ -613,8 +524,6 @@ contract LeetSwapV2Router01 is Ownable {
         if (amountB < amountBMin) {
             revert InsufficientBAmount();
         }
-
-        _stopLiquidityManagement(tokenA, tokenB);
     }
 
     function removeLiquidityETH(
@@ -629,8 +538,6 @@ contract LeetSwapV2Router01 is Ownable {
         ensure(deadline)
         returns (uint256 amountToken, uint256 amountCANTO)
     {
-        _startLiquidityManagement(token, address(wcanto));
-
         (amountToken, amountCANTO) = removeLiquidity(
             token,
             address(wcanto),
@@ -643,8 +550,6 @@ contract LeetSwapV2Router01 is Ownable {
         _safeTransfer(token, to, amountToken);
         wcanto.withdraw(amountCANTO);
         _safeTransferETH(to, amountCANTO);
-
-        _stopLiquidityManagement(token, address(wcanto));
     }
 
     // **** REMOVE LIQUIDITY (supporting fee-on-transfer tokens) ****
@@ -656,8 +561,6 @@ contract LeetSwapV2Router01 is Ownable {
         address to,
         uint256 deadline
     ) public virtual ensure(deadline) returns (uint256 amountCANTO) {
-        _startLiquidityManagement(token, address(wcanto));
-
         (, amountCANTO) = removeLiquidity(
             token,
             address(wcanto),
@@ -670,8 +573,6 @@ contract LeetSwapV2Router01 is Ownable {
         _safeTransfer(token, to, IERC20(token).balanceOf(address(this)));
         wcanto.withdraw(amountCANTO);
         _safeTransferETH(to, amountCANTO);
-
-        _stopLiquidityManagement(token, address(wcanto));
     }
 
     // **** LIBRARY FUNCTIONS ****
@@ -710,31 +611,6 @@ contract LeetSwapV2Router01 is Ownable {
         if (pairs.length != stable.length) revert ArrayLengthMismatch();
         for (uint256 i = 0; i < pairs.length; i++) {
             stablePairs[pairs[i]] = stable[i];
-        }
-    }
-
-    function setCantoDEXForTokens(
-        address tokenA,
-        address tokenB,
-        bool useCantoDEX
-    ) external onlyOwner {
-        useCantoDEXForTokens[tokenA][tokenB] = useCantoDEX;
-        useCantoDEXForTokens[tokenB][tokenA] = useCantoDEX;
-    }
-
-    function setCantoDEXForTokens(
-        address[] calldata tokenA,
-        address[] calldata tokenB,
-        bool[] calldata useCantoDEX
-    ) external onlyOwner {
-        if (
-            tokenA.length != tokenB.length ||
-            tokenA.length != useCantoDEX.length ||
-            tokenB.length != useCantoDEX.length
-        ) revert ArrayLengthMismatch();
-        for (uint256 i = 0; i < tokenA.length; i++) {
-            useCantoDEXForTokens[tokenA[i]][tokenB[i]] = useCantoDEX[i];
-            useCantoDEXForTokens[tokenB[i]][tokenA[i]] = useCantoDEX[i];
         }
     }
 }

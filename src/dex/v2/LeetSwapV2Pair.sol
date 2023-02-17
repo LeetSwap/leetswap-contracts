@@ -3,10 +3,10 @@ pragma solidity 0.8.17;
 
 import "./LeetSwapV2Fees.sol";
 import "./interfaces/ILeetSwapV2Factory.sol";
-import "./libraries/Math.sol";
 import "./interfaces/ILeetSwapV2Pair.sol";
 import "./interfaces/ILeetSwapV2Callee.sol";
-import "./interfaces/ITurnstile.sol";
+import "@leetswap/interfaces/ITurnstile.sol";
+import "@leetswap/libraries/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 // The base pair of pools, either stable or volatile
