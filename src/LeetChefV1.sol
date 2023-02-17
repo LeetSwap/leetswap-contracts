@@ -459,6 +459,12 @@ contract LeetChefV1 is Ownable {
         }
     }
 
+    /// @notice Allows owner to reclaim/withdraw the primary token held by this contract for migration.
+    /// @param amount Amount of tokens to reclaim.
+    function reclaimPrimaryToken(uint256 amount) public onlyOwner {
+        PRIMARY_TOKEN.safeTransfer(owner(), amount);
+    }
+
     /// @notice Allows owner to claim fees for Solidly-based LP tokens.
     /// @param pid The index of the pool. See `poolInfo`.
     function claimLPFees(uint256 pid) public onlyOwner {
