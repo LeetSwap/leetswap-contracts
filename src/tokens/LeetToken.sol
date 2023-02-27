@@ -29,6 +29,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     address public stakingFeeRecipient;
     address public treasuryFeeRecipient;
 
+    bool public tradingEnabled;
     bool public pairAutoDetectionEnabled;
 
     mapping(address => bool) public isExcludedFromFee;
@@ -44,6 +45,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     event AddressExcludedFromFees(address _address);
     event AddressIncludedInFees(address _address);
 
+    error TradingNotEnabled();
     error FeeTooHigh();
     error InvalidFeeRecipient();
     error NotLiquidityManager();
@@ -152,6 +154,14 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         uint256 farmsFeeAmount;
         uint256 stakingFeeAmount;
         uint256 treasuryFeeAmount;
+
+        if (
+            !tradingEnabled &&
+            !isExcludedFromFee[sender] &&
+            !isExcludedFromFee[recipient]
+        ) {
+            revert TradingNotEnabled();
+        }
 
         if (_shouldTakeTransferTax(sender, recipient)) {
             if (isLeetPair(sender)) {
