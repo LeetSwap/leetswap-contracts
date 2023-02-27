@@ -159,6 +159,8 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         public
         returns (uint256)
     {
+        if (totalBuyFee == 0) return 0;
+
         uint256 totalFeeAmount = (amount * totalBuyFee) / FEE_DENOMINATOR;
         uint256 burnFeeAmount = (totalFeeAmount * burnBuyFee) / totalBuyFee;
         uint256 farmsFeeAmount = (totalFeeAmount * farmsBuyFee) / totalBuyFee;
@@ -187,6 +189,8 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         public
         returns (uint256)
     {
+        if (totalSellFee == 0) return 0;
+
         uint256 totalFeeAmount = (amount * totalSellFee) / FEE_DENOMINATOR;
         uint256 burnFeeAmount = (totalFeeAmount * burnSellFee) / totalSellFee;
         uint256 farmsFeeAmount = (totalFeeAmount * farmsSellFee) / totalSellFee;
