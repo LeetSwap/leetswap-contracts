@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import "@leetswap/interfaces/ILiquidityManageable.sol";
 import "@leetswap/dex/v2/interfaces/ILeetSwapV2Router01.sol";
 import "@leetswap/dex/v2/interfaces/ILeetSwapV2Factory.sol";
+import "@leetswap/dex/v2/interfaces/ILeetSwapV2Pair.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -104,27 +105,34 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             return false;
         }
 
-        (bool success, bytes memory data) = _pair.staticcall(
-            abi.encodeWithSignature("factory()")
-        );
-        if (!success) {
+        if (_pair.code.length == 0) {
             return false;
         }
 
-        (success, data) = _pair.staticcall(abi.encodeWithSignature("token0()"));
-        address token0 = abi.decode(data, (address));
-        if (!success) {
+        ILeetSwapV2Pair pair = ILeetSwapV2Pair(_pair);
+
+        try pair.factory() returns (address factory) {
+            if (factory == address(0)) {
+                return false;
+            }
+        } catch {
             return false;
-        } else if (token0 == address(this)) {
-            return true;
         }
 
-        (success, data) = _pair.staticcall(abi.encodeWithSignature("token1()"));
-        address token1 = abi.decode(data, (address));
-        if (!success) {
+        try pair.token0() returns (address token0) {
+            if (token0 == address(this)) {
+                return true;
+            }
+        } catch {
             return false;
-        } else if (token1 == address(this)) {
-            return true;
+        }
+
+        try pair.token1() returns (address token1) {
+            if (token1 == address(this)) {
+                return true;
+            }
+        } catch {
+            return false;
         }
 
         return false;
