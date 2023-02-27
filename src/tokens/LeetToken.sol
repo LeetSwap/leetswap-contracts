@@ -30,8 +30,11 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     address public stakingFeeRecipient;
     address public treasuryFeeRecipient;
 
+    uint256 public tradingEnabledTimestamp = 0; // 0 means trading is not active
+
     bool public tradingEnabled;
     bool public pairAutoDetectionEnabled;
+    bool public indirectSwapFeeEnabled;
 
     mapping(address => bool) public isExcludedFromFee;
     mapping(address => bool) public isLiquidityManager;
@@ -152,17 +155,66 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             (isLeetPair(sender) || isLeetPair(recipient));
     }
 
+    function _takeBuyFee(address sender, uint256 amount)
+        public
+        returns (uint256)
+    {
+        uint256 burnFeeAmount = (amount * burnBuyFee) / FEE_DENOMINATOR;
+        uint256 farmsFeeAmount = (amount * farmsBuyFee) / FEE_DENOMINATOR;
+        uint256 stakingFeeAmount = (amount * stakingBuyFee) / FEE_DENOMINATOR;
+        uint256 treasuryFeeAmount = (amount * treasuryBuyFee) / FEE_DENOMINATOR;
+        uint256 totalFeeAmount = burnFeeAmount +
+            farmsFeeAmount +
+            stakingFeeAmount +
+            treasuryFeeAmount;
+
+        if (burnFeeAmount > 0) super._transfer(sender, DEAD, burnFeeAmount);
+
+        if (farmsFeeAmount > 0)
+            super._transfer(sender, farmsFeeRecipient, farmsFeeAmount);
+
+        if (stakingFeeAmount > 0)
+            super._transfer(sender, stakingFeeRecipient, stakingFeeAmount);
+
+        if (treasuryFeeAmount > 0)
+            super._transfer(sender, treasuryFeeRecipient, treasuryFeeAmount);
+
+        return totalFeeAmount;
+    }
+
+    function _takeSellFee(address sender, uint256 amount)
+        public
+        returns (uint256)
+    {
+        uint256 burnFeeAmount = (amount * burnSellFee) / FEE_DENOMINATOR;
+        uint256 farmsFeeAmount = (amount * farmsSellFee) / FEE_DENOMINATOR;
+        uint256 stakingFeeAmount = (amount * stakingSellFee) / FEE_DENOMINATOR;
+        uint256 treasuryFeeAmount = (amount * treasurySellFee) /
+            FEE_DENOMINATOR;
+        uint256 totalFeeAmount = burnFeeAmount +
+            farmsFeeAmount +
+            stakingFeeAmount +
+            treasuryFeeAmount;
+
+        if (burnFeeAmount > 0) super._transfer(sender, DEAD, burnFeeAmount);
+
+        if (farmsFeeAmount > 0)
+            super._transfer(sender, farmsFeeRecipient, farmsFeeAmount);
+
+        if (stakingFeeAmount > 0)
+            super._transfer(sender, stakingFeeRecipient, stakingFeeAmount);
+
+        if (treasuryFeeAmount > 0)
+            super._transfer(sender, treasuryFeeRecipient, treasuryFeeAmount);
+
+        return totalFeeAmount;
+    }
+
     function _transfer(
         address sender,
         address recipient,
         uint256 amount
     ) internal override {
-        uint256 totalFeeAmount;
-        uint256 burnFeeAmount;
-        uint256 farmsFeeAmount;
-        uint256 stakingFeeAmount;
-        uint256 treasuryFeeAmount;
-
         if (
             !tradingEnabled &&
             !isExcludedFromFee[sender] &&
@@ -171,33 +223,19 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             revert TradingNotEnabled();
         }
 
-        if (_shouldTakeTransferTax(sender, recipient)) {
-            if (isLeetPair(sender)) {
-                burnFeeAmount = (amount * burnBuyFee) / FEE_DENOMINATOR;
-                farmsFeeAmount = (amount * farmsBuyFee) / FEE_DENOMINATOR;
-                stakingFeeAmount = (amount * stakingBuyFee) / FEE_DENOMINATOR;
-                treasuryFeeAmount = (amount * treasuryBuyFee) / FEE_DENOMINATOR;
-            } else if (isLeetPair(recipient)) {
-                burnFeeAmount = (amount * burnSellFee) / FEE_DENOMINATOR;
-                farmsFeeAmount = (amount * farmsSellFee) / FEE_DENOMINATOR;
-                stakingFeeAmount = (amount * stakingSellFee) / FEE_DENOMINATOR;
-                treasuryFeeAmount =
-                    (amount * treasurySellFee) /
-                    FEE_DENOMINATOR;
+        bool takeFee = _shouldTakeTransferTax(sender, recipient);
+        bool isBuy = isLeetPair(sender);
+        bool isSell = isLeetPair(recipient);
+        bool isIndirectSwap = isBuy && isSell;
+        takeFee = takeFee && (indirectSwapFeeEnabled || !isIndirectSwap);
+
+        uint256 totalFeeAmount;
+        if (takeFee) {
+            if (isSell) {
+                totalFeeAmount = _takeSellFee(sender, amount);
+            } else if (isBuy) {
+                totalFeeAmount = _takeBuyFee(sender, amount);
             }
-
-            totalFeeAmount =
-                burnFeeAmount +
-                farmsFeeAmount +
-                stakingFeeAmount +
-                treasuryFeeAmount;
-        }
-
-        if (totalFeeAmount > 0) {
-            super._transfer(sender, DEAD, burnFeeAmount);
-            super._transfer(sender, farmsFeeRecipient, farmsFeeAmount);
-            super._transfer(sender, stakingFeeRecipient, stakingFeeAmount);
-            super._transfer(sender, treasuryFeeRecipient, treasuryFeeAmount);
         }
 
         super._transfer(sender, recipient, amount - totalFeeAmount);
@@ -309,5 +347,24 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         onlyOwner
     {
         isLiquidityManager[_liquidityManager] = _isManager;
+    }
+
+    function setIndirectSwapFeeEnabled(bool _indirectSwapFeeEnabled)
+        public
+        onlyOwner
+    {
+        indirectSwapFeeEnabled = _indirectSwapFeeEnabled;
+    }
+
+    function enableTrading() public onlyOwner {
+        tradingEnabled = true;
+        tradingEnabledTimestamp = block.timestamp;
+    }
+
+    function setPairAutoDetectionEnabled(bool _pairAutoDetectionEnabled)
+        public
+        onlyOwner
+    {
+        pairAutoDetectionEnabled = _pairAutoDetectionEnabled;
     }
 }

@@ -49,6 +49,9 @@ contract TestLeetToken is Test {
         vm.deal(address(this), 100 ether);
         weth.deposit{value: 10 ether}();
 
+        vm.prank(leet.owner());
+        leet.enableTrading();
+
         assertEq(leet.balanceOf(leet.owner()), 1337000 * 1e18);
     }
 
