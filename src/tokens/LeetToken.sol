@@ -133,6 +133,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         view
         returns (bool)
     {
+        if (isExcludedFromFee[sender] || isExcludedFromFee[recipient]) {
+            return false;
+        }
+
         return
             !_isLiquidityManagementPhase &&
             (isLeetPair(sender) || isLeetPair(recipient));
