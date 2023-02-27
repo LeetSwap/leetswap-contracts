@@ -159,14 +159,15 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         public
         returns (uint256)
     {
-        uint256 burnFeeAmount = (amount * burnBuyFee) / FEE_DENOMINATOR;
-        uint256 farmsFeeAmount = (amount * farmsBuyFee) / FEE_DENOMINATOR;
-        uint256 stakingFeeAmount = (amount * stakingBuyFee) / FEE_DENOMINATOR;
-        uint256 treasuryFeeAmount = (amount * treasuryBuyFee) / FEE_DENOMINATOR;
-        uint256 totalFeeAmount = burnFeeAmount +
-            farmsFeeAmount +
-            stakingFeeAmount +
-            treasuryFeeAmount;
+        uint256 totalFeeAmount = (amount * totalBuyFee) / FEE_DENOMINATOR;
+        uint256 burnFeeAmount = (totalFeeAmount * burnBuyFee) / totalBuyFee;
+        uint256 farmsFeeAmount = (totalFeeAmount * farmsBuyFee) / totalBuyFee;
+        uint256 stakingFeeAmount = (totalFeeAmount * stakingBuyFee) /
+            totalBuyFee;
+        uint256 treasuryFeeAmount = totalFeeAmount -
+            burnFeeAmount -
+            farmsFeeAmount -
+            stakingFeeAmount;
 
         if (burnFeeAmount > 0) super._transfer(sender, DEAD, burnFeeAmount);
 
@@ -186,15 +187,15 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         public
         returns (uint256)
     {
-        uint256 burnFeeAmount = (amount * burnSellFee) / FEE_DENOMINATOR;
-        uint256 farmsFeeAmount = (amount * farmsSellFee) / FEE_DENOMINATOR;
-        uint256 stakingFeeAmount = (amount * stakingSellFee) / FEE_DENOMINATOR;
-        uint256 treasuryFeeAmount = (amount * treasurySellFee) /
-            FEE_DENOMINATOR;
-        uint256 totalFeeAmount = burnFeeAmount +
-            farmsFeeAmount +
-            stakingFeeAmount +
-            treasuryFeeAmount;
+        uint256 totalFeeAmount = (amount * totalSellFee) / FEE_DENOMINATOR;
+        uint256 burnFeeAmount = (totalFeeAmount * burnSellFee) / totalSellFee;
+        uint256 farmsFeeAmount = (totalFeeAmount * farmsSellFee) / totalSellFee;
+        uint256 stakingFeeAmount = (totalFeeAmount * stakingSellFee) /
+            totalSellFee;
+        uint256 treasuryFeeAmount = totalFeeAmount -
+            burnFeeAmount -
+            farmsFeeAmount -
+            stakingFeeAmount;
 
         if (burnFeeAmount > 0) super._transfer(sender, DEAD, burnFeeAmount);
 
