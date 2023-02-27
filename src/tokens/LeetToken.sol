@@ -29,11 +29,13 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     address public stakingFeeRecipient;
     address public treasuryFeeRecipient;
 
+    bool public pairAutoDetectionEnabled;
+
     mapping(address => bool) public isExcludedFromFee;
-    mapping(address => bool) public isLeetPair;
     mapping(address => bool) public isLiquidityManager;
 
     bool internal _isLiquidityManagementPhase;
+    mapping(address => bool) internal _isLeetPair;
 
     event BuyFeeUpdated(uint256 _fee, uint256 _previousFee);
     event SellFeeUpdated(uint256 _fee, uint256 _previousFee);
@@ -76,7 +78,8 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         isLiquidityManager[address(router)] = true;
 
         address pair = factory.createPair(address(this), router.WETH());
-        isLeetPair[pair] = true;
+        _isLeetPair[pair] = true;
+        pairAutoDetectionEnabled = true;
 
         _mint(owner(), 1337000 * 10**decimals());
     }
@@ -90,6 +93,41 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     /************************************************************************/
 
+    function isLeetPair(address _pair) public view returns (bool isPair) {
+        if (_isLeetPair[_pair]) {
+            return true;
+        }
+
+        if (!pairAutoDetectionEnabled) {
+            return false;
+        }
+
+        (bool success, bytes memory data) = _pair.staticcall(
+            abi.encodeWithSignature("factory()")
+        );
+        if (!success) {
+            return false;
+        }
+
+        (success, data) = _pair.staticcall(abi.encodeWithSignature("token0()"));
+        address token0 = abi.decode(data, (address));
+        if (!success) {
+            return false;
+        } else if (token0 == address(this)) {
+            return true;
+        }
+
+        (success, data) = _pair.staticcall(abi.encodeWithSignature("token1()"));
+        address token1 = abi.decode(data, (address));
+        if (!success) {
+            return false;
+        } else if (token1 == address(this)) {
+            return true;
+        }
+
+        return false;
+    }
+
     function _shouldTakeTransferTax(address sender, address recipient)
         internal
         view
@@ -97,7 +135,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     {
         return
             !_isLiquidityManagementPhase &&
-            (isLeetPair[sender] || isLeetPair[recipient]);
+            (isLeetPair(sender) || isLeetPair(recipient));
     }
 
     function _transfer(
@@ -112,12 +150,12 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         uint256 treasuryFeeAmount;
 
         if (_shouldTakeTransferTax(sender, recipient)) {
-            if (isLeetPair[sender]) {
+            if (isLeetPair(sender)) {
                 burnFeeAmount = (amount * burnBuyFee) / FEE_DENOMINATOR;
                 farmsFeeAmount = (amount * farmsBuyFee) / FEE_DENOMINATOR;
                 stakingFeeAmount = (amount * stakingBuyFee) / FEE_DENOMINATOR;
                 treasuryFeeAmount = (amount * treasuryBuyFee) / FEE_DENOMINATOR;
-            } else if (isLeetPair[recipient]) {
+            } else if (isLeetPair(recipient)) {
                 burnFeeAmount = (amount * burnSellFee) / FEE_DENOMINATOR;
                 farmsFeeAmount = (amount * farmsSellFee) / FEE_DENOMINATOR;
                 stakingFeeAmount = (amount * stakingSellFee) / FEE_DENOMINATOR;
@@ -159,12 +197,12 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     /************************************************************************/
 
     function addLeetPair(address _pair) external onlyOwner {
-        isLeetPair[_pair] = true;
+        _isLeetPair[_pair] = true;
         emit LeetPairAdded(_pair);
     }
 
     function removeLeetPair(address _pair) external onlyOwner {
-        isLeetPair[_pair] = false;
+        _isLeetPair[_pair] = false;
         emit LeetPairRemoved(_pair);
     }
 

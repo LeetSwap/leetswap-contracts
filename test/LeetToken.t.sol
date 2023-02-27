@@ -6,31 +6,23 @@ import "forge-std/Test.sol";
 import "@leetswap/dex/v2/LeetSwapV2Router01.sol";
 import "@leetswap/dex/v2/LeetSwapV2Factory.sol";
 import "@leetswap/dex/v2/LeetSwapV2Pair.sol";
-import "@leetswap/interfaces/IWCANTO.sol";
-import "@leetswap/dex/native/interfaces/IBaseV1Factory.sol";
-import "@leetswap/dex/native/interfaces/IBaseV1Router01.sol";
-import "../script/DeployDEXV2.s.sol";
 import "../script/DeployLeetToken.s.sol";
-
-import {MockERC20LiquidityManageable} from "./doubles/MockERC20LiquidityManageable.sol";
-import {MockERC20Tax} from "./doubles/MockERC20Tax.sol";
-import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
 contract TestLeetToken is Test {
     uint256 mainnetFork;
 
-    DeployDEXV2 public dexDeployer;
-    LeetSwapV2Factory public factory;
-    LeetSwapV2Router01 public router;
+    DeployLeetToken public deployer;
+    LeetToken public leet;
 
-    IBaseV1Factory public cantoDEXFactory;
-    IBaseV1Router01 public cantoDEXRouter;
+    LeetSwapV2Factory public factory =
+        LeetSwapV2Factory(0x432Aad747c5f126a313d918E15d8133fca571Df1);
+    LeetSwapV2Router01 public router =
+        LeetSwapV2Router01(payable(0x90DEc5d26CE471418265a314063955392E66765D));
+    IBaseV1Factory public cantoDEXFactory =
+        IBaseV1Factory(0xE387067f12561e579C5f7d4294f51867E0c1cFba);
 
     IWCANTO public weth;
-    MockERC20 public token0;
-    MockERC20 public token1;
-    MockERC20Tax public token0Tax;
-    MockERC20LiquidityManageable public token0LM;
+    IERC20 public note = IERC20(0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503);
 
     uint256 public taxRate;
     uint256 public taxDivisor;
@@ -39,91 +31,75 @@ contract TestLeetToken is Test {
     function setUp() public {
         mainnetFork = vm.createSelectFork(
             "https://canto.slingshot.finance",
-            2923489
+            3093626
         );
 
-        dexDeployer = new DeployDEXV2();
-        (factory, router) = dexDeployer.run();
-        weth = IWCANTO(router.WETH());
+        deployer = new DeployLeetToken();
+        leet = deployer.run(address(router));
+        weth = router.wcanto();
 
-        cantoDEXFactory = IBaseV1Factory(dexDeployer.cantoDEXFactory());
-
-        token0 = new MockERC20("Token0", "T0", 18);
-        token1 = new MockERC20("Token1", "T1", 18);
-        token0.mint(address(this), 10 ether);
-        token1.mint(address(this), 10 ether);
-
-        taxRate = 1000;
-        taxDivisor = 1e4;
-        taxRecipient = address(0xDEADBEEF);
-
-        token0Tax = new MockERC20Tax(
-            "Token0Tax",
-            "T0T",
-            18,
-            taxRate,
-            taxDivisor,
-            taxRecipient
-        );
-        token0Tax.mint(address(this), 10 ether);
-
-        token0LM = new MockERC20LiquidityManageable(
-            "Token0LM",
-            "T0LM",
-            18,
-            taxRate,
-            taxDivisor,
-            taxRecipient
-        );
-        token0LM.mint(address(this), 10 ether);
-
-        token0Tax.setPair(
-            address(router.pairFor(address(token0Tax), address(weth))),
-            true
-        );
-        token0Tax.setPair(
-            address(router.pairFor(address(token0Tax), address(token0))),
-            true
-        );
-        token0Tax.setPair(
-            address(router.pairFor(address(token0Tax), address(token1))),
-            true
-        );
-        token0Tax.setPair(
-            address(router.pairFor(address(token0Tax), address(token0LM))),
-            true
-        );
-
-        token0LM.setPair(
-            address(router.pairFor(address(token0LM), address(weth))),
-            true
-        );
-        token0LM.setPair(
-            address(router.pairFor(address(token0LM), address(token0))),
-            true
-        );
-        token0LM.setPair(
-            address(router.pairFor(address(token0LM), address(token1))),
-            true
-        );
-
-        vm.label(address(dexDeployer), "dexDeployer");
+        vm.label(address(deployer), "deployer");
         vm.label(address(factory), "factory");
         vm.label(address(router), "router");
+        vm.label(address(leet), "leet");
         vm.label(address(weth), "wcanto");
-        vm.label(address(token0), "token0");
-        vm.label(address(token1), "token1");
-        vm.label(address(token0Tax), "token0Tax");
-        vm.label(address(token0LM), "token0LM");
+        vm.label(address(note), "note");
         vm.label(address(cantoDEXFactory), "cantoDEXFactory");
 
         vm.deal(address(this), 100 ether);
         weth.deposit{value: 10 ether}();
+
+        assertEq(leet.balanceOf(leet.owner()), 1337000 * 1e18);
     }
 
-    function testLeetTokenDeployment() public {
-        DeployLeetToken deployer = new DeployLeetToken();
-        deployer.run(address(router));
+    function testAddLiquidityWithCanto() public {
+        vm.startPrank(leet.owner());
+
+        leet.approve(address(router), 10 ether);
+        router.addLiquidityETH{value: 10 ether}(
+            address(leet),
+            10 ether,
+            0,
+            0,
+            address(deployer),
+            block.timestamp
+        );
+
+        vm.stopPrank();
+
+        address pair = factory.getPair(address(leet), address(weth));
+        assertEq(leet.balanceOf(pair), 10 ether);
+        assertEq(IERC20(address(weth)).balanceOf(address(pair)), 10 ether);
+    }
+
+    function testBuyTax() public {
+        testAddLiquidityWithCanto();
+        vm.deal(address(this), 1 ether);
+
+        address[] memory path = new address[](2);
+        path[0] = address(weth);
+        path[1] = address(leet);
+
+        uint256 amountOut = router.getAmountOut(1 ether, path[0], path[1]);
+        uint256 tax = (amountOut * leet.totalBuyFee()) / leet.FEE_DENOMINATOR();
+        uint256 amountOutAfterTax = amountOut - tax;
+
+        router.swapExactETHForTokens{value: 1 ether}(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        assertEq(leet.balanceOf(address(this)), amountOutAfterTax);
+    }
+
+    function testPairAutoDetection() public {
+        address pair = factory.getPair(address(leet), address(weth));
+        vm.prank(leet.owner());
+        leet.removeLeetPair(pair);
+
+        testBuyTax();
     }
 
     receive() external payable {}
