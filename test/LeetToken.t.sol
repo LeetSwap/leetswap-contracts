@@ -53,6 +53,8 @@ contract TestLeetToken is Test {
         leet.enableTrading();
 
         assertEq(leet.balanceOf(leet.owner()), 1337000 * 1e18);
+
+        vm.warp(block.timestamp + leet.sniperSellFeeDecayPeriod());
     }
 
     function testAddLiquidityWithCanto() public {
@@ -95,6 +97,145 @@ contract TestLeetToken is Test {
         );
 
         assertEq(leet.balanceOf(address(this)), amountOutAfterTax);
+    }
+
+    function testSniperBuyTax() public {
+        vm.warp(leet.tradingEnabledTimestamp() + 1);
+
+        testAddLiquidityWithCanto();
+        vm.deal(address(this), 1 ether);
+
+        address[] memory path = new address[](2);
+        path[0] = address(weth);
+        path[1] = address(leet);
+
+        uint256 amountOut = router.getAmountOut(1 ether, path[0], path[1]);
+        uint256 buyTax = (amountOut * leet.totalBuyFee()) /
+            leet.FEE_DENOMINATOR();
+        uint256 sniperBuyTax = (amountOut * leet.sniperBuyFee()) /
+            leet.FEE_DENOMINATOR();
+        uint256 amountOutAfterTax = amountOut - buyTax - sniperBuyTax;
+
+        router.swapExactETHForTokens{value: 1 ether}(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        assertEq(leet.balanceOf(address(this)), amountOutAfterTax);
+    }
+
+    function testSellTax() public {
+        testAddLiquidityWithCanto();
+        vm.deal(address(this), 0 ether);
+
+        vm.prank(leet.owner());
+        leet.transfer(address(this), 1 ether);
+        leet.approve(address(router), UINT256_MAX);
+
+        address[] memory path = new address[](2);
+        path[0] = address(leet);
+        path[1] = address(weth);
+
+        uint256 amountInAfterTax = 1 ether -
+            (1 ether * leet.totalSellFee()) /
+            leet.FEE_DENOMINATOR();
+        uint256 amountOut = router.getAmountOut(
+            amountInAfterTax,
+            path[0],
+            path[1]
+        );
+
+        router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            1 ether,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        assertEq(address(this).balance, amountOut);
+    }
+
+    function testSniperSellTax() public {
+        vm.warp(leet.tradingEnabledTimestamp() + 1);
+
+        testAddLiquidityWithCanto();
+        vm.deal(address(this), 0 ether);
+
+        vm.prank(leet.owner());
+        leet.transfer(address(this), 1 ether);
+        leet.approve(address(router), UINT256_MAX);
+
+        address[] memory path = new address[](2);
+        path[0] = address(leet);
+        path[1] = address(weth);
+
+        uint256 amountInAfterTax = 1 ether -
+            (1 ether * leet.totalSellFee()) /
+            leet.FEE_DENOMINATOR() -
+            (1 ether * leet.sniperSellFee()) /
+            leet.FEE_DENOMINATOR();
+        uint256 amountOut = router.getAmountOut(
+            amountInAfterTax,
+            path[0],
+            path[1]
+        );
+
+        router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            1 ether,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        assertEq(address(this).balance, amountOut);
+    }
+
+    function testSniperBuyFeeGetter() public {
+        vm.warp(leet.tradingEnabledTimestamp());
+
+        uint256 sniperBuyBaseFee = 2000;
+        uint256 decayPeriod = 10 minutes;
+        uint256 decayStart = block.timestamp;
+
+        assertEq(leet.sniperBuyFee(), sniperBuyBaseFee);
+
+        vm.warp(decayStart + 7 minutes + 30 seconds);
+        assertEq(leet.sniperBuyFee(), 500);
+
+        vm.warp(decayStart + decayPeriod / 2);
+        assertEq(leet.sniperBuyFee(), sniperBuyBaseFee / 2);
+
+        vm.warp(decayStart + decayPeriod);
+        assertEq(leet.sniperBuyFee(), 0);
+
+        vm.warp(decayStart + decayPeriod * 2);
+        assertEq(leet.sniperBuyFee(), 0);
+    }
+
+    function testSniperSellFeeGetter() public {
+        vm.warp(leet.tradingEnabledTimestamp());
+
+        uint256 sniperSellBaseFee = 2000;
+        uint256 decayPeriod = 24 hours;
+        uint256 decayStart = block.timestamp;
+
+        assertEq(leet.sniperSellFee(), sniperSellBaseFee);
+
+        vm.warp(decayStart + 16 hours);
+        assertEq(leet.sniperSellFee(), 667);
+
+        vm.warp(decayStart + decayPeriod / 2);
+        assertEq(leet.sniperSellFee(), sniperSellBaseFee / 2);
+
+        vm.warp(decayStart + decayPeriod);
+        assertEq(leet.sniperSellFee(), 0);
+
+        vm.warp(decayStart + decayPeriod * 2);
+        assertEq(leet.sniperSellFee(), 0);
     }
 
     function testPairAutoDetection() public {

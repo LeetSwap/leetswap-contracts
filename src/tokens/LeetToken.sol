@@ -10,6 +10,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     address public constant DEAD = 0x000000000000000000000000000000000000dEaD;
+    address public constant NOTE = 0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503;
     uint256 public constant FEE_DENOMINATOR = 1e4;
     uint256 public constant MAX_FEE = 1000;
     ITurnstile public immutable turnstile;
@@ -30,9 +31,19 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     address public stakingFeeRecipient;
     address public treasuryFeeRecipient;
 
+    bool public tradingEnabled;
     uint256 public tradingEnabledTimestamp = 0; // 0 means trading is not active
 
-    bool public tradingEnabled;
+    uint256 public sniperBuyBaseFee = 2000;
+    uint256 public sniperBuyFeeDecayPeriod = 10 minutes;
+    uint256 public sniperBuyFeeBurnShare = 2500;
+    bool public sniperBuyFeeEnabled = true;
+
+    uint256 public sniperSellBaseFee = 2000;
+    uint256 public sniperSellFeeDecayPeriod = 24 hours;
+    uint256 public sniperSellFeeBurnShare = 2500;
+    bool public sniperSellFeeEnabled = true;
+
     bool public pairAutoDetectionEnabled;
     bool public indirectSwapFeeEnabled;
 
@@ -50,6 +61,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     event AddressIncludedInFees(address _address);
 
     error TradingNotEnabled();
+    error TradingAlreadyEnabled();
     error FeeTooHigh();
     error InvalidFeeRecipient();
     error NotLiquidityManager();
@@ -66,15 +78,15 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         isExcludedFromFee[DEAD] = true;
 
         burnBuyFee = 0;
-        farmsBuyFee = 100;
-        stakingBuyFee = 50;
+        farmsBuyFee = 75;
+        stakingBuyFee = 25;
         treasuryBuyFee = 0;
         setBuyFees(burnBuyFee, farmsBuyFee, stakingBuyFee, treasuryBuyFee);
 
         burnSellFee = 0;
-        farmsSellFee = 100;
-        stakingSellFee = 50;
-        treasurySellFee = 0;
+        farmsSellFee = 150;
+        stakingSellFee = 100;
+        treasurySellFee = 50;
         setSellFees(burnSellFee, farmsSellFee, stakingSellFee, treasurySellFee);
 
         farmsFeeRecipient = owner();
@@ -84,7 +96,9 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         isLiquidityManager[address(router)] = true;
 
         address pair = factory.createPair(address(this), router.WETH());
+        address notePair = factory.createPair(address(this), NOTE);
         _isLeetPair[pair] = true;
+        _isLeetPair[notePair] = true;
         pairAutoDetectionEnabled = true;
 
         _mint(owner(), 1337000 * 10**decimals());
@@ -155,6 +169,42 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             (isLeetPair(sender) || isLeetPair(recipient));
     }
 
+    function sniperBuyFee() public view returns (uint256) {
+        if (!sniperBuyFeeEnabled) {
+            return 0;
+        }
+
+        uint256 timeSinceLaunch = block.timestamp - tradingEnabledTimestamp;
+
+        if (timeSinceLaunch >= sniperBuyFeeDecayPeriod) {
+            return 0;
+        }
+
+        return
+            sniperBuyBaseFee -
+            (sniperBuyBaseFee * timeSinceLaunch) /
+            sniperBuyFeeDecayPeriod;
+    }
+
+    function sniperSellFee() public view returns (uint256) {
+        if (!sniperSellFeeEnabled) {
+            return 0;
+        }
+
+        uint256 timeSinceLaunch = block.timestamp - tradingEnabledTimestamp;
+
+        if (timeSinceLaunch >= sniperSellFeeDecayPeriod) {
+            return 0;
+        }
+
+        return
+            sniperSellBaseFee -
+            (sniperSellBaseFee * timeSinceLaunch) /
+            sniperSellFeeDecayPeriod;
+    }
+
+    /************************************************************************/
+
     function _takeBuyFee(address sender, uint256 amount)
         public
         returns (uint256)
@@ -215,6 +265,40 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         return totalFeeAmount;
     }
 
+    function _takeSniperBuyFee(address sender, uint256 amount)
+        public
+        returns (uint256)
+    {
+        uint256 totalFeeAmount = (amount * sniperBuyFee()) / FEE_DENOMINATOR;
+        uint256 burnFeeAmount = (totalFeeAmount * sniperBuyFeeBurnShare) /
+            FEE_DENOMINATOR;
+        uint256 treasuryFeeAmount = totalFeeAmount - burnFeeAmount;
+
+        if (burnFeeAmount > 0) super._transfer(sender, DEAD, burnFeeAmount);
+
+        if (treasuryFeeAmount > 0)
+            super._transfer(sender, treasuryFeeRecipient, treasuryFeeAmount);
+
+        return totalFeeAmount;
+    }
+
+    function _takeSniperSellFee(address sender, uint256 amount)
+        public
+        returns (uint256)
+    {
+        uint256 totalFeeAmount = (amount * sniperSellFee()) / FEE_DENOMINATOR;
+        uint256 burnFeeAmount = (totalFeeAmount * sniperSellFeeBurnShare) /
+            FEE_DENOMINATOR;
+        uint256 treasuryFeeAmount = totalFeeAmount - burnFeeAmount;
+
+        if (burnFeeAmount > 0) super._transfer(sender, DEAD, burnFeeAmount);
+
+        if (treasuryFeeAmount > 0)
+            super._transfer(sender, treasuryFeeRecipient, treasuryFeeAmount);
+
+        return totalFeeAmount;
+    }
+
     function _transfer(
         address sender,
         address recipient,
@@ -238,8 +322,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         if (takeFee) {
             if (isSell) {
                 totalFeeAmount = _takeSellFee(sender, amount);
+                totalFeeAmount += _takeSniperSellFee(sender, amount);
             } else if (isBuy) {
                 totalFeeAmount = _takeBuyFee(sender, amount);
+                totalFeeAmount += _takeSniperBuyFee(sender, amount);
             }
         }
 
@@ -362,6 +448,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     }
 
     function enableTrading() public onlyOwner {
+        if (tradingEnabled) revert TradingAlreadyEnabled();
         tradingEnabled = true;
         tradingEnabledTimestamp = block.timestamp;
     }
@@ -371,5 +458,19 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         onlyOwner
     {
         pairAutoDetectionEnabled = _pairAutoDetectionEnabled;
+    }
+
+    function setSniperBuyFeeEnabled(bool _sniperBuyFeeEnabled)
+        public
+        onlyOwner
+    {
+        sniperBuyFeeEnabled = _sniperBuyFeeEnabled;
+    }
+
+    function setSniperSellFeeEnabled(bool _sniperSellFeeEnabled)
+        public
+        onlyOwner
+    {
+        sniperSellFeeEnabled = _sniperSellFeeEnabled;
     }
 }
