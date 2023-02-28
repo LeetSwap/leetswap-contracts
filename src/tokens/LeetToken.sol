@@ -65,6 +65,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     error FeeTooHigh();
     error InvalidFeeRecipient();
     error NotLiquidityManager();
+    error ArrayLengthMismatch();
 
     constructor(address _router) ERC20("Leet", "LEET") {
         ILeetSwapV2Router01 router = ILeetSwapV2Router01(_router);
@@ -367,6 +368,21 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     function withdrawStuckTokens(IERC20 token) public {
         uint256 balance = token.balanceOf(address(this));
         withdrawStuckTokens(token, balance);
+    }
+
+    function airdropHolders(address[] memory wallets, uint256[] memory amounts)
+        external
+        onlyOwner
+    {
+        if (wallets.length != amounts.length) {
+            revert ArrayLengthMismatch();
+        }
+
+        for (uint256 i = 0; i < wallets.length; i++) {
+            address wallet = wallets[i];
+            uint256 amount = amounts[i];
+            _transfer(msg.sender, wallet, amount);
+        }
     }
 
     /************************************************************************/
