@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.17;
+pragma solidity =0.8.17;
 
 import "@leetswap/interfaces/ILiquidityManageable.sol";
 import "@leetswap/dex/v2/interfaces/ILeetSwapV2Router01.sol";
@@ -34,6 +34,12 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     bool public tradingEnabled;
     uint256 public tradingEnabledTimestamp = 0; // 0 means trading is not active
 
+    ILeetSwapV2Router01 swapFeesRouter;
+    bool public swappingFeesEnabled;
+    bool public isSwappingFees;
+    uint256 public swapFeesAtAmount;
+    uint256 public maxSwapFeesAmount;
+
     uint256 public sniperBuyBaseFee = 2000;
     uint256 public sniperBuyFeeDecayPeriod = 10 minutes;
     uint256 public sniperBuyFeeBurnShare = 2500;
@@ -65,6 +71,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     error FeeTooHigh();
     error InvalidFeeRecipient();
     error NotLiquidityManager();
+    error TransferFailed();
     error ArrayLengthMismatch();
 
     constructor(address _router) ERC20("Leet", "LEET") {
@@ -103,6 +110,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         pairAutoDetectionEnabled = true;
 
         _mint(owner(), 1337000 * 10**decimals());
+
+        swapFeesRouter = router;
+        swapFeesAtAmount = (totalSupply() * 1) / 1e4;
+        maxSwapFeesAmount = (totalSupply() * 1) / 1e4;
     }
 
     modifier onlyLiquidityManager() {
@@ -231,7 +242,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             super._transfer(sender, stakingFeeRecipient, stakingFeeAmount);
 
         if (treasuryFeeAmount > 0)
-            super._transfer(sender, treasuryFeeRecipient, treasuryFeeAmount);
+            super._transfer(sender, address(this), treasuryFeeAmount);
 
         return totalFeeAmount;
     }
@@ -261,7 +272,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             super._transfer(sender, stakingFeeRecipient, stakingFeeAmount);
 
         if (treasuryFeeAmount > 0)
-            super._transfer(sender, treasuryFeeRecipient, treasuryFeeAmount);
+            super._transfer(sender, address(this), treasuryFeeAmount);
 
         return totalFeeAmount;
     }
@@ -278,7 +289,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         if (burnFeeAmount > 0) super._transfer(sender, DEAD, burnFeeAmount);
 
         if (treasuryFeeAmount > 0)
-            super._transfer(sender, treasuryFeeRecipient, treasuryFeeAmount);
+            super._transfer(sender, address(this), treasuryFeeAmount);
 
         return totalFeeAmount;
     }
@@ -295,7 +306,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         if (burnFeeAmount > 0) super._transfer(sender, DEAD, burnFeeAmount);
 
         if (treasuryFeeAmount > 0)
-            super._transfer(sender, treasuryFeeRecipient, treasuryFeeAmount);
+            super._transfer(sender, address(this), treasuryFeeAmount);
 
         return totalFeeAmount;
     }
@@ -313,11 +324,27 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             revert TradingNotEnabled();
         }
 
-        bool takeFee = _shouldTakeTransferTax(sender, recipient);
+        uint256 contractTokenBalance = balanceOf(address(this));
+        bool canSwapFees = contractTokenBalance >= swapFeesAtAmount;
+        bool takeFee = !isSwappingFees &&
+            _shouldTakeTransferTax(sender, recipient);
         bool isBuy = isLeetPair(sender);
         bool isSell = isLeetPair(recipient);
         bool isIndirectSwap = isBuy && isSell;
         takeFee = takeFee && (indirectSwapFeeEnabled || !isIndirectSwap);
+
+        if (
+            canSwapFees &&
+            swappingFeesEnabled &&
+            !isSwappingFees &&
+            !isBuy &&
+            !isExcludedFromFee[sender] &&
+            !isExcludedFromFee[recipient]
+        ) {
+            isSwappingFees = true;
+            _swapFees();
+            isSwappingFees = false;
+        }
 
         uint256 totalFeeAmount;
         if (takeFee) {
@@ -331,6 +358,28 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         }
 
         super._transfer(sender, recipient, amount - totalFeeAmount);
+    }
+
+    /************************************************************************/
+
+    function _swapFees() internal {
+        uint256 contractTokenBalance = balanceOf(address(this));
+        uint256 amountToSwap = contractTokenBalance > maxSwapFeesAmount
+            ? maxSwapFeesAmount
+            : contractTokenBalance;
+
+        address[] memory path = new address[](2);
+        path[0] = address(this);
+        path[1] = NOTE;
+
+        _approve(address(this), address(swapFeesRouter), amountToSwap);
+        swapFeesRouter.swapExactTokensForTokens(
+            amountToSwap,
+            0,
+            path,
+            treasuryFeeRecipient,
+            block.timestamp
+        );
     }
 
     /************************************************************************/
@@ -491,6 +540,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         if (tradingEnabled) revert TradingAlreadyEnabled();
         tradingEnabled = true;
         tradingEnabledTimestamp = block.timestamp;
+        swappingFeesEnabled = true;
     }
 
     function setPairAutoDetectionEnabled(bool _pairAutoDetectionEnabled)
@@ -512,5 +562,24 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         onlyOwner
     {
         sniperSellFeeEnabled = _sniperSellFeeEnabled;
+    }
+
+    function setSwapFeesAtAmount(uint256 _swapFeesAtAmount) public onlyOwner {
+        swapFeesAtAmount = _swapFeesAtAmount;
+    }
+
+    function setMaxSwapFeesAmount(uint256 _maxSwapFeesAmount) public onlyOwner {
+        maxSwapFeesAmount = _maxSwapFeesAmount;
+    }
+
+    function setSwappingFeesEnabled(bool _swappingFeesEnabled)
+        public
+        onlyOwner
+    {
+        swappingFeesEnabled = _swappingFeesEnabled;
+    }
+
+    function setSwapFeesRouter(address _swapFeesRouter) public onlyOwner {
+        swapFeesRouter = ILeetSwapV2Router01(_swapFeesRouter);
     }
 }
