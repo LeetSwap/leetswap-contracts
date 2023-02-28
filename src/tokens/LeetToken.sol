@@ -347,6 +347,30 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     /************************************************************************/
 
+    function withdrawStuckEth(uint256 amount) public onlyOwner {
+        (bool success, ) = address(msg.sender).call{value: amount}("");
+        if (!success) revert TransferFailed();
+    }
+
+    function withdrawStuckEth() public onlyOwner {
+        withdrawStuckEth(address(this).balance);
+    }
+
+    function withdrawStuckTokens(IERC20 token, uint256 amount)
+        public
+        onlyOwner
+    {
+        bool success = token.transfer(msg.sender, amount);
+        if (!success) revert TransferFailed();
+    }
+
+    function withdrawStuckTokens(IERC20 token) public {
+        uint256 balance = token.balanceOf(address(this));
+        withdrawStuckTokens(token, balance);
+    }
+
+    /************************************************************************/
+
     function addLeetPair(address _pair) external onlyOwner {
         _isLeetPair[_pair] = true;
         emit LeetPairAdded(_pair);
