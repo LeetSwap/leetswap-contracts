@@ -8,6 +8,7 @@ import "@leetswap/interfaces/IWCANTO.sol";
 import "@leetswap/interfaces/ILiquidityManageable.sol";
 import "@leetswap/libraries/Math.sol";
 import "@leetswap/dex/native/interfaces/IBaseV1Factory.sol";
+import "@leetswap/dex/native/interfaces/IBaseV1Pair.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -30,6 +31,7 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
     error TradeExpired();
     error InsufficientOutputAmount();
     error InvalidPath();
+    error PairNotFound();
     error CantoTransferFailed();
     error IdenticalAddresses();
     error InsufficientAmount();
@@ -168,6 +170,23 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
         }
     }
 
+    function pairInfo(address tokenA, address tokenB)
+        public
+        view
+        returns (address pair, bool isStable)
+    {
+        (address token0, address token1) = sortTokens(tokenA, tokenB);
+        if (useCantoDEXForTokens[token0][token1]) {
+            isStable = stablePairs[
+                cantoDEXFactory.getPair(token0, token1, true)
+            ];
+            pair = cantoDEXFactory.getPair(token0, token1, isStable);
+        } else {
+            isStable = stablePairs[pairForLeetSwapV2(token0, token1, true)];
+            pair = pairForLeetSwapV2(token0, token1, isStable);
+        }
+    }
+
     // fetches and sorts the reserves for a pair
     function getReserves(address tokenA, address tokenB)
         public
@@ -192,6 +211,10 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
         address pair = pairFor(tokenIn, tokenOut);
         if (ILeetSwapV2Factory(factory).isPair(pair)) {
             amount = ILeetSwapV2Pair(pair).getAmountOut(amountIn, tokenIn);
+        } else if (cantoDEXFactory.isPair(pair)) {
+            amount = IBaseV1Pair(pair).getAmountOut(amountIn, tokenIn);
+        } else {
+            revert PairNotFound();
         }
     }
 
@@ -211,6 +234,13 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
                     amounts[i],
                     routes[i].from
                 );
+            } else if (cantoDEXFactory.isPair(pair)) {
+                amounts[i + 1] = IBaseV1Pair(pair).getAmountOut(
+                    amounts[i],
+                    routes[i].from
+                );
+            } else {
+                revert PairNotFound();
             }
         }
     }
@@ -248,7 +278,7 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
     {
         routes = new Route[](path.length - 1);
         for (uint256 i = 0; i < path.length - 1; i++) {
-            bool isStable = stablePairs[pairFor(path[i], path[i + 1])];
+            (, bool isStable) = pairInfo(path[i], path[i + 1]);
             routes[i] = Route(path[i], path[i + 1], isStable);
         }
     }
