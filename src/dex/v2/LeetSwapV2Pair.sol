@@ -252,8 +252,9 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
             .protocolFeesRecipient();
         uint256 _protocolFeesAmount = (amount * _protocolFeesShare) / 10000;
         amount -= _protocolFeesAmount;
-        _safeTransfer(token0, fees, amount); // transfer the fees out to FeesV1
-        _safeTransfer(token0, _protocolFeesRecipient, _protocolFeesAmount); // transfer the protocol fees out to the protocol fees recipient
+        if (amount > 0) _safeTransfer(token0, fees, amount); // transfer the fees out to FeesV1
+        if (_protocolFeesAmount > 0)
+            _safeTransfer(token0, _protocolFeesRecipient, _protocolFeesAmount); // transfer the protocol fees out to the protocol fees recipient
         uint256 _ratio = (amount * 1e18) / totalSupply; // 1e18 adjustment is removed during claim
         if (_ratio > 0) {
             index0 += _ratio;
