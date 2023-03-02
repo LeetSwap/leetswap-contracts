@@ -21,4 +21,9 @@ contract ManageLeetToken is Test {
         vm.broadcast();
         leet.addLeetPair(pair);
     }
+
+    function enableTrading(LeetToken leet) public {
+        vm.broadcast();
+        leet.enableTrading();
+    }
 }
