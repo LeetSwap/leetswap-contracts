@@ -8,7 +8,6 @@ import "@leetswap/dex/v2/LeetSwapV2Factory.sol";
 import "@leetswap/dex/v2/LeetSwapV2Pair.sol";
 import "@leetswap/interfaces/IWCANTO.sol";
 import "@leetswap/dex/native/interfaces/IBaseV1Factory.sol";
-import "@leetswap/dex/native/interfaces/IBaseV1Router01.sol";
 import "../script/DeployDEXV2.s.sol";
 
 import {MockERC20LiquidityManageable} from "./doubles/MockERC20LiquidityManageable.sol";
@@ -23,9 +22,9 @@ contract TestLeetSwapV2 is Test {
     LeetSwapV2Router01 public router;
 
     IBaseV1Factory public cantoDEXFactory;
-    IBaseV1Router01 public cantoDEXRouter;
 
     IWCANTO public weth;
+    IERC20 public note;
     MockERC20 public token0;
     MockERC20 public token1;
     MockERC20Tax public token0Tax;
@@ -38,12 +37,13 @@ contract TestLeetSwapV2 is Test {
     function setUp() public {
         mainnetFork = vm.createSelectFork(
             "https://canto.slingshot.finance",
-            2923489
+            3149555
         );
 
         deployer = new DeployDEXV2();
         (factory, router) = deployer.run();
         weth = IWCANTO(router.WETH());
+        note = IERC20(0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503);
 
         cantoDEXFactory = IBaseV1Factory(deployer.cantoDEXFactory());
 
@@ -1109,6 +1109,39 @@ contract TestLeetSwapV2 is Test {
             initialBalanceToken0 + amountOut
         );
         assertEq(token1.balanceOf(address(this)), initialBalanceToken1);
+    }
+
+    function testSwapExactETHForTokensWithNote() public {
+        address[] memory path = new address[](2);
+        path[0] = address(weth);
+        path[1] = address(note);
+
+        uint256 initialBalancenote = note.balanceOf(address(this));
+        uint256 amountOut = router.getAmountsOut(1 ether, path)[1];
+        router.swapExactETHForTokens{value: 1 ether}(
+            amountOut,
+            path,
+            address(this),
+            block.timestamp + 1
+        );
+
+        assertEq(note.balanceOf(address(this)), initialBalancenote + amountOut);
+    }
+
+    function testSwapExactETHForTokensSupportingFeeOnTransferTokensWithNote()
+        public
+    {
+        address[] memory path = new address[](2);
+        path[0] = address(weth);
+        path[1] = address(note);
+
+        uint256 initialBalancenote = note.balanceOf(address(this));
+        uint256 amountOut = router.getAmountsOut(1 ether, path)[1];
+        router.swapExactETHForTokensSupportingFeeOnTransferTokens{
+            value: 1 ether
+        }(amountOut, path, address(this), block.timestamp + 1);
+
+        assertEq(note.balanceOf(address(this)), initialBalancenote + amountOut);
     }
 
     function testSwapExactETHForTokensInsufficientAmountOut() public {
