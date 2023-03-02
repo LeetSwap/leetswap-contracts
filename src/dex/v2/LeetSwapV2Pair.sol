@@ -108,14 +108,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         uint256 csrTokenID = turnstile.getTokenId(factory);
         turnstile.assign(csrTokenID);
 
-        fees = address(
-            new LeetSwapV2Fees(
-                _token0,
-                _token1,
-                turnstile,
-                ILeetSwapV2Factory(factory).burnables()
-            )
-        );
+        fees = address(new LeetSwapV2Fees(_token0, _token1, turnstile));
 
         observations.push(Observation(block.timestamp, 0, 0));
     }

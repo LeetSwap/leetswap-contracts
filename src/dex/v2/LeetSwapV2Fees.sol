@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "./interfaces/ILeetSwapV2Burnables.sol";
 import "./interfaces/ILeetSwapV2Factory.sol";
 import "./interfaces/ILeetSwapV2Pair.sol";
 import "@leetswap/interfaces/ITurnstile.sol";
@@ -12,18 +11,15 @@ contract LeetSwapV2Fees {
     address internal immutable pair; // The pair it is bonded to
     address internal immutable token0; // token0 of pair, saved localy and statically for gas optimization
     address internal immutable token1; // Token1 of pair, saved localy and statically for gas optimization
-    ILeetSwapV2Burnables public immutable burnables; // Contract that keeps track of what tokens shall be burned
 
     constructor(
         address _token0,
         address _token1,
-        ITurnstile turnstile,
-        ILeetSwapV2Burnables _burnables
+        ITurnstile turnstile
     ) {
         pair = msg.sender;
         token0 = _token0;
         token1 = _token1;
-        burnables = _burnables;
 
         uint256 csrTokenID = turnstile.getTokenId(pair);
         turnstile.assign(csrTokenID);
@@ -48,15 +44,7 @@ contract LeetSwapV2Fees {
         uint256 amount1
     ) external {
         require(msg.sender == pair);
-        if (amount0 > 0) {
-            uint256 burnAmount = burnables.burnableAmount(token0, amount0);
-            _safeTransfer(token0, recipient, amount0 - burnAmount);
-            _safeTransfer(token0, address(0xdead), burnAmount);
-        }
-        if (amount1 > 0) {
-            uint256 burnAmount = burnables.burnableAmount(token1, amount1);
-            _safeTransfer(token1, recipient, amount1 - burnAmount);
-            _safeTransfer(token1, address(0xdead), burnAmount);
-        }
+        if (amount0 > 0) _safeTransfer(token0, recipient, amount0);
+        if (amount1 > 0) _safeTransfer(token1, recipient, amount1);
     }
 }

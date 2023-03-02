@@ -2,15 +2,12 @@
 pragma solidity 0.8.17;
 
 import "./LeetSwapV2Pair.sol";
-import "./LeetSwapV2Burnables.sol";
 import "./interfaces/ILeetSwapV2Factory.sol";
 import "./interfaces/ITradingFeesOracle.sol";
 import "@leetswap/interfaces/ITurnstile.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
-    ILeetSwapV2Burnables public immutable burnables;
-
     bool public isPaused;
     address public pauser;
     address public pendingPauser;
@@ -43,8 +40,6 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
         isPaused = false;
         turnstile = _turnstile;
         turnstile.register(msg.sender);
-        burnables = new LeetSwapV2Burnables(turnstile);
-        Ownable(address(burnables)).transferOwnership(msg.sender);
         protocolFeesRecipient = msg.sender;
         _tradingFees = 30;
         protocolFeesShare = 0;
