@@ -236,6 +236,29 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         emit Claim(msg.sender, recipient, claimed0, claimed1);
     }
 
+    function claimableFees(address account)
+        external
+        view
+        returns (uint256 _claimable0, uint256 _claimable1)
+    {
+        uint256 _supplied = balanceOf[account];
+        if (_supplied > 0) {
+            uint256 _delta0 = index0 - supplyIndex0[account];
+            uint256 _delta1 = index1 - supplyIndex1[account];
+            if (_delta0 > 0) {
+                uint256 _share = (_supplied * _delta0) / 1e18;
+                _claimable0 = claimable0[account] + _share;
+            }
+            if (_delta1 > 0) {
+                uint256 _share = (_supplied * _delta1) / 1e18;
+                _claimable1 = claimable1[account] + _share;
+            }
+        } else {
+            _claimable0 = claimable0[account];
+            _claimable1 = claimable1[account];
+        }
+    }
+
     // Used to transfer fees when calling _update[01]
     function _transferFeesSupportingTaxTokens(address token, uint256 amount)
         public
