@@ -5,7 +5,6 @@ import "./LeetSwapV2Fees.sol";
 import "./interfaces/ILeetSwapV2Factory.sol";
 import "./interfaces/ILeetSwapV2Pair.sol";
 import "./interfaces/ILeetSwapV2Callee.sol";
-import "@leetswap/interfaces/ITurnstile.sol";
 import "@leetswap/libraries/Math.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 

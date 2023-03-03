@@ -3,7 +3,6 @@ pragma solidity 0.8.17;
 
 import "@leetswap/interfaces/ITurnstile.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 interface ICSRContract {
