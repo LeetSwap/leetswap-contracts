@@ -236,6 +236,22 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         emit Claim(msg.sender, recipient, claimed0, claimed1);
     }
 
+    // Used to transfer fees when calling _update[01]
+    function _transferFeesSupportingTaxTokens(address token, uint256 amount)
+        public
+        returns (uint256)
+    {
+        if (amount == 0) {
+            return 0;
+        }
+
+        uint256 balanceBefore = IERC20(token).balanceOf(fees);
+        _safeTransfer(token, fees, amount);
+        uint256 balanceAfter = IERC20(token).balanceOf(fees);
+
+        return balanceAfter - balanceBefore;
+    }
+
     // Accrue fees on token0
     function _update0(uint256 amount) internal {
         uint256 _protocolFeesShare = ILeetSwapV2Factory(factory)
@@ -243,11 +259,13 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         address _protocolFeesRecipient = ILeetSwapV2Factory(factory)
             .protocolFeesRecipient();
         uint256 _protocolFeesAmount = (amount * _protocolFeesShare) / 10000;
-        amount -= _protocolFeesAmount;
-        if (amount > 0) _safeTransfer(token0, fees, amount); // transfer the fees out to FeesV1
+        amount = _transferFeesSupportingTaxTokens(
+            token0,
+            amount - _protocolFeesAmount
+        );
         if (_protocolFeesAmount > 0)
-            _safeTransfer(token0, _protocolFeesRecipient, _protocolFeesAmount); // transfer the protocol fees out to the protocol fees recipient
-        uint256 _ratio = (amount * 1e18) / totalSupply; // 1e18 adjustment is removed during claim
+            _safeTransfer(token0, _protocolFeesRecipient, _protocolFeesAmount);
+        uint256 _ratio = (amount * 1e18) / totalSupply;
         if (_ratio > 0) {
             index0 += _ratio;
         }
@@ -261,9 +279,12 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         address _protocolFeesRecipient = ILeetSwapV2Factory(factory)
             .protocolFeesRecipient();
         uint256 _protocolFeesAmount = (amount * _protocolFeesShare) / 10000;
-        amount -= _protocolFeesAmount;
-        _safeTransfer(token1, fees, amount);
-        _safeTransfer(token1, _protocolFeesRecipient, _protocolFeesAmount);
+        amount = _transferFeesSupportingTaxTokens(
+            token1,
+            amount - _protocolFeesAmount
+        );
+        if (_protocolFeesAmount > 0)
+            _safeTransfer(token1, _protocolFeesRecipient, _protocolFeesAmount);
         uint256 _ratio = (amount * 1e18) / totalSupply;
         if (_ratio > 0) {
             index1 += _ratio;

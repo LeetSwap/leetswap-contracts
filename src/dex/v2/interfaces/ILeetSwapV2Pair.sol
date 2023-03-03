@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 interface ILeetSwapV2Pair {
     function factory() external view returns (address);
 
+    function fees() external view returns (address);
+
     function transferFrom(
         address src,
         address dst,
@@ -54,6 +56,8 @@ interface ILeetSwapV2Pair {
     function token1() external view returns (address);
 
     function stable() external view returns (bool);
+
+    function balanceOf(address) external view returns (uint256);
 
     //LP token pricing
     function sample(
