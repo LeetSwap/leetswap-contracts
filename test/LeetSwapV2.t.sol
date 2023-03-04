@@ -1908,5 +1908,234 @@ contract TestLeetSwapV2 is Test {
         assertEq(claimable1, 0);
     }
 
+    function testProtocolFees() public {
+        vm.startPrank(factory.owner());
+        factory.setProtocolFeesShare(2750);
+        factory.setProtocolFeesRecipient(address(42));
+        vm.stopPrank();
+
+        (address _token0, address _token1) = router.sortTokens(
+            address(token0),
+            address(token1)
+        );
+
+        IERC20(_token0).approve(address(router), 1 ether);
+        IERC20(_token1).approve(address(router), 1 ether);
+
+        (, , uint256 liquidity) = router.addLiquidity(
+            _token0,
+            _token1,
+            1 ether,
+            1 ether,
+            1 ether,
+            1 ether,
+            address(this),
+            block.timestamp + 1
+        );
+
+        LeetSwapV2Pair pair = LeetSwapV2Pair(
+            factory.getPair(_token0, _token1, false)
+        );
+        vm.label(address(pair), pair.symbol());
+        vm.label(pair.fees(), "Fees");
+        assertEq(pair.balanceOf(address(this)), liquidity);
+        pair.approve(address(router), type(uint256).max);
+
+        address[] memory path = new address[](2);
+        path[0] = _token0;
+        path[1] = _token1;
+
+        uint256 amountIn = 1 ether;
+        IERC20(_token0).approve(address(router), amountIn);
+        router.swapExactTokensForTokens(
+            amountIn,
+            0,
+            path,
+            address(this),
+            block.timestamp + 1
+        );
+
+        uint256 tradingFees = factory.tradingFees(address(pair), address(this));
+        assertEq(tradingFees, 30);
+        (uint256 claimable0, uint256 claimable1) = pair.claimableFees(
+            address(this)
+        );
+        uint256 protocolFeesAmount = (amountIn *
+            tradingFees *
+            factory.protocolFeesShare()) /
+            1e4 /
+            1e4;
+        uint256 tradingFeesAmount = (amountIn * tradingFees * liquidity) /
+            1e4 /
+            pair.totalSupply();
+
+        assertEq(
+            IERC20(_token0).balanceOf(factory.protocolFeesRecipient()),
+            protocolFeesAmount
+        );
+        assertEq(claimable0, tradingFeesAmount - protocolFeesAmount);
+        assertEq(claimable1, 0);
+
+        (uint256 claimed0, uint256 claimed1) = pair.claimFees();
+        assertEq(claimed0, claimable0);
+        assertEq(claimed1, claimable1);
+
+        (claimable0, claimable1) = pair.claimableFees(address(this));
+        assertEq(claimable0, 0);
+        assertEq(claimable1, 0);
+
+        path[0] = _token1;
+        path[1] = _token0;
+
+        IERC20(_token1).approve(address(router), amountIn);
+        router.swapExactTokensForTokens(
+            amountIn,
+            0,
+            path,
+            address(this),
+            block.timestamp + 1
+        );
+
+        (claimable0, claimable1) = pair.claimableFees(address(this));
+        protocolFeesAmount =
+            (amountIn * tradingFees * factory.protocolFeesShare()) /
+            1e4 /
+            1e4;
+        tradingFeesAmount =
+            (amountIn * tradingFees * liquidity) /
+            1e4 /
+            pair.totalSupply();
+
+        assertEq(
+            IERC20(_token1).balanceOf(factory.protocolFeesRecipient()),
+            protocolFeesAmount
+        );
+        assertEq(claimable0, 0);
+        assertEq(claimable1, tradingFeesAmount - protocolFeesAmount);
+
+        (claimed0, claimed1) = pair.claimFees();
+        assertEq(claimed0, claimable0);
+        assertEq(claimed1, claimable1);
+
+        (claimable0, claimable1) = pair.claimableFees(address(this));
+        assertEq(claimable0, 0);
+        assertEq(claimable1, 0);
+    }
+
+    function testProtocolFeesTaxToken() public {
+        vm.startPrank(factory.owner());
+        factory.setProtocolFeesShare(2750);
+        factory.setProtocolFeesRecipient(address(42));
+        vm.stopPrank();
+
+        (address _token0, address _token1) = router.sortTokens(
+            address(token0LM),
+            address(token1)
+        );
+
+        IERC20(_token0).approve(address(router), 1 ether);
+        IERC20(_token1).approve(address(router), 1 ether);
+
+        (, , uint256 liquidity) = router.addLiquidity(
+            _token0,
+            _token1,
+            1 ether,
+            1 ether,
+            1 ether,
+            1 ether,
+            address(this),
+            block.timestamp + 1
+        );
+
+        LeetSwapV2Pair pair = LeetSwapV2Pair(
+            factory.getPair(_token0, _token1, false)
+        );
+        vm.label(address(pair), pair.symbol());
+        vm.label(pair.fees(), "Fees");
+        assertEq(pair.balanceOf(address(this)), liquidity);
+        pair.approve(address(router), type(uint256).max);
+
+        address[] memory path = new address[](2);
+        path[0] = _token0;
+        path[1] = _token1;
+
+        uint256 amountIn = 1 ether;
+        IERC20(_token0).approve(address(router), amountIn);
+        router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            amountIn,
+            0,
+            path,
+            address(this),
+            block.timestamp + 1
+        );
+
+        uint256 tradingFees = factory.tradingFees(address(pair), address(this));
+        assertEq(tradingFees, 30);
+        (uint256 claimable0, uint256 claimable1) = pair.claimableFees(
+            address(this)
+        );
+        uint256 amountInAfterTax = amountIn - (amountIn * taxRate) / taxDivisor;
+        uint256 tradingFeesAmount = (amountInAfterTax * tradingFees) / 1e4;
+        uint256 protocolFeesAmount = (tradingFeesAmount *
+            factory.protocolFeesShare()) / 1e4;
+        uint256 lpFeeAmount = ((tradingFeesAmount - protocolFeesAmount) *
+            liquidity) / pair.totalSupply();
+        uint256 lpFeeAmountAfterTax = lpFeeAmount -
+            (lpFeeAmount * taxRate) /
+            taxDivisor;
+
+        assertEq(
+            IERC20(_token0).balanceOf(factory.protocolFeesRecipient()),
+            protocolFeesAmount - (protocolFeesAmount * taxRate) / taxDivisor
+        );
+        assertEq(claimable0, lpFeeAmountAfterTax - 1); // subtracting 1 because of leftover dust
+        assertEq(claimable1, 0);
+
+        (uint256 claimed0, uint256 claimed1) = pair.claimFees();
+        assertEq(claimed0, claimable0);
+        assertEq(claimed1, claimable1);
+
+        (claimable0, claimable1) = pair.claimableFees(address(this));
+        assertEq(claimable0, 0);
+        assertEq(claimable1, 0);
+
+        path[0] = _token1;
+        path[1] = _token0;
+
+        IERC20(_token1).approve(address(router), amountIn);
+        router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            amountIn,
+            0,
+            path,
+            address(this),
+            block.timestamp + 1
+        );
+
+        (claimable0, claimable1) = pair.claimableFees(address(this));
+        protocolFeesAmount =
+            (amountIn * tradingFees * factory.protocolFeesShare()) /
+            1e4 /
+            1e4;
+        tradingFeesAmount = (amountIn * tradingFees) / 1e4;
+        lpFeeAmount =
+            ((tradingFeesAmount - protocolFeesAmount) * liquidity) /
+            pair.totalSupply();
+
+        assertEq(
+            IERC20(_token1).balanceOf(factory.protocolFeesRecipient()),
+            protocolFeesAmount
+        );
+        assertEq(claimable0, 0);
+        assertEq(claimable1, lpFeeAmount);
+
+        (claimed0, claimed1) = pair.claimFees();
+        assertEq(claimed0, claimable0);
+        assertEq(claimed1, claimable1);
+
+        (claimable0, claimable1) = pair.claimableFees(address(this));
+        assertEq(claimable0, 0);
+        assertEq(claimable1, 0);
+    }
+
     receive() external payable {}
 }
