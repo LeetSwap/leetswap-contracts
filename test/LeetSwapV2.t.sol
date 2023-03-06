@@ -1783,7 +1783,7 @@ contract TestLeetSwapV2 is Test {
 
         uint256 tradingFees = factory.tradingFees(address(pair), address(this));
         assertEq(tradingFees, 30);
-        (uint256 claimable0, uint256 claimable1) = pair.claimableFees(
+        (uint256 claimable0, uint256 claimable1) = pair.claimableFeesFor(
             address(this)
         );
         assertEq(
@@ -1793,7 +1793,7 @@ contract TestLeetSwapV2 is Test {
         assertEq(claimable1, 0);
 
         pair.claimFees();
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         assertEq(claimable0, 0);
         assertEq(claimable1, 0);
 
@@ -1809,7 +1809,7 @@ contract TestLeetSwapV2 is Test {
             block.timestamp + 1
         );
 
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         assertEq(claimable0, 0);
         assertEq(
             claimable1,
@@ -1817,7 +1817,7 @@ contract TestLeetSwapV2 is Test {
         );
 
         pair.claimFees();
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         assertEq(claimable0, 0);
         assertEq(claimable1, 0);
     }
@@ -1866,7 +1866,7 @@ contract TestLeetSwapV2 is Test {
 
         uint256 tradingFees = factory.tradingFees(address(pair), address(this));
         assertEq(tradingFees, 30);
-        (uint256 claimable0, uint256 claimable1) = pair.claimableFees(
+        (uint256 claimable0, uint256 claimable1) = pair.claimableFeesFor(
             address(this)
         );
         uint256 amountInAfterTax = amountIn - (amountIn * taxRate) / taxDivisor;
@@ -1879,7 +1879,7 @@ contract TestLeetSwapV2 is Test {
         assertEq(claimable1, 0);
 
         pair.claimFees();
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         assertEq(claimable0, 0);
         assertEq(claimable1, 0);
 
@@ -1895,7 +1895,7 @@ contract TestLeetSwapV2 is Test {
             block.timestamp + 1
         );
 
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         assertEq(claimable0, 0);
         assertEq(
             claimable1,
@@ -1903,7 +1903,7 @@ contract TestLeetSwapV2 is Test {
         );
 
         pair.claimFees();
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         assertEq(claimable0, 0);
         assertEq(claimable1, 0);
     }
@@ -1957,7 +1957,7 @@ contract TestLeetSwapV2 is Test {
 
         uint256 tradingFees = factory.tradingFees(address(pair), address(this));
         assertEq(tradingFees, 30);
-        (uint256 claimable0, uint256 claimable1) = pair.claimableFees(
+        (uint256 claimable0, uint256 claimable1) = pair.claimableFeesFor(
             address(this)
         );
         uint256 protocolFeesAmount = (amountIn *
@@ -1980,7 +1980,7 @@ contract TestLeetSwapV2 is Test {
         assertEq(claimed0, claimable0);
         assertEq(claimed1, claimable1);
 
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         assertEq(claimable0, 0);
         assertEq(claimable1, 0);
 
@@ -1996,7 +1996,7 @@ contract TestLeetSwapV2 is Test {
             block.timestamp + 1
         );
 
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         protocolFeesAmount =
             (amountIn * tradingFees * factory.protocolFeesShare()) /
             1e4 /
@@ -2017,7 +2017,7 @@ contract TestLeetSwapV2 is Test {
         assertEq(claimed0, claimable0);
         assertEq(claimed1, claimable1);
 
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         assertEq(claimable0, 0);
         assertEq(claimable1, 0);
     }
@@ -2071,7 +2071,7 @@ contract TestLeetSwapV2 is Test {
 
         uint256 tradingFees = factory.tradingFees(address(pair), address(this));
         assertEq(tradingFees, 30);
-        (uint256 claimable0, uint256 claimable1) = pair.claimableFees(
+        (uint256 claimable0, uint256 claimable1) = pair.claimableFeesFor(
             address(this)
         );
         uint256 amountInAfterTax = amountIn - (amountIn * taxRate) / taxDivisor;
@@ -2095,7 +2095,7 @@ contract TestLeetSwapV2 is Test {
         assertEq(claimed0, claimable0);
         assertEq(claimed1, claimable1);
 
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         assertEq(claimable0, 0);
         assertEq(claimable1, 0);
 
@@ -2111,7 +2111,7 @@ contract TestLeetSwapV2 is Test {
             block.timestamp + 1
         );
 
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         protocolFeesAmount =
             (amountIn * tradingFees * factory.protocolFeesShare()) /
             1e4 /
@@ -2132,7 +2132,7 @@ contract TestLeetSwapV2 is Test {
         assertEq(claimed0, claimable0);
         assertEq(claimed1, claimable1);
 
-        (claimable0, claimable1) = pair.claimableFees(address(this));
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
         assertEq(claimable0, 0);
         assertEq(claimable1, 0);
     }

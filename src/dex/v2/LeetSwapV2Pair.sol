@@ -236,8 +236,8 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         emit Claim(msg.sender, recipient, claimed0, claimed1);
     }
 
-    function claimableFees(address account)
-        external
+    function claimableFeesFor(address account)
+        public
         view
         returns (uint256 _claimable0, uint256 _claimable1)
     {
@@ -257,6 +257,14 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
             _claimable0 = claimable0[account];
             _claimable1 = claimable1[account];
         }
+    }
+
+    function claimableFees()
+        external
+        view
+        returns (uint256 _claimable0, uint256 _claimable1)
+    {
+        return claimableFeesFor(msg.sender);
     }
 
     // Used to transfer fees when calling _update[01]
