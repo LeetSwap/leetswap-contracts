@@ -3,43 +3,43 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
 
-import "@leetswap/dex/v2/LeetSwapV2Router01.sol";
-import "@leetswap/dex/v2/LeetSwapV2Factory.sol";
-import "@leetswap/dex/v2/LeetSwapV2Pair.sol";
+import "../script/DeployDEXV2.s.sol";
 import "../script/DeployLeetToken.s.sol";
 
 contract TestLeetToken is Test {
     uint256 mainnetFork;
 
-    DeployLeetToken public deployer;
+    DeployLeetToken public leetDeployer;
     LeetToken public leet;
 
-    LeetSwapV2Factory public factory =
-        LeetSwapV2Factory(0x432Aad747c5f126a313d918E15d8133fca571Df1);
-    LeetSwapV2Router01 public router =
-        LeetSwapV2Router01(payable(0x90DEc5d26CE471418265a314063955392E66765D));
-    IBaseV1Factory public cantoDEXFactory =
-        IBaseV1Factory(0xE387067f12561e579C5f7d4294f51867E0c1cFba);
-    address noteAccountant = 0x4F6DCfa2F69AF7350AAc48D3a3d5B8D03b5378AA;
+    DeployDEXV2 public dexDeployer;
+    LeetSwapV2Factory public factory;
+    LeetSwapV2Router01 public router;
+
+    IBaseV1Factory public cantoDEXFactory;
 
     IWCANTO public weth;
-    IERC20 public note = IERC20(0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503);
+    IERC20 public note;
 
-    uint256 public taxRate;
-    uint256 public taxDivisor;
-    address public taxRecipient;
+    address noteAccountant = 0x4F6DCfa2F69AF7350AAc48D3a3d5B8D03b5378AA;
 
     function setUp() public {
         mainnetFork = vm.createSelectFork(
             "https://canto.slingshot.finance",
-            3093626
+            3149555
         );
 
-        deployer = new DeployLeetToken();
-        leet = deployer.run(address(router));
-        weth = router.wcanto();
+        dexDeployer = new DeployDEXV2();
+        (factory, router) = dexDeployer.run();
+        weth = IWCANTO(router.WETH());
+        note = IERC20(0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503);
 
-        vm.label(address(deployer), "deployer");
+        cantoDEXFactory = IBaseV1Factory(dexDeployer.cantoDEXFactory());
+
+        leetDeployer = new DeployLeetToken();
+        leet = leetDeployer.run(address(router));
+
+        vm.label(address(leetDeployer), "leet deployer");
         vm.label(address(factory), "factory");
         vm.label(address(router), "router");
         vm.label(address(leet), "leet");
