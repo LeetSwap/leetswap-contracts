@@ -387,7 +387,7 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
             {
                 // scope to avoid stack too deep errors
                 (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
-                (uint256 reserveInput, uint256 reserveOutput) = input == token0
+                (uint256 reserveInput, ) = input == token0
                     ? (reserve0, reserve1)
                     : (reserve1, reserve0);
                 amountInput =
