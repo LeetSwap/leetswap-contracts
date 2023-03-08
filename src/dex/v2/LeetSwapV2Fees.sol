@@ -10,6 +10,10 @@ contract LeetSwapV2Fees {
     address internal immutable token0; // token0 of pair, saved localy and statically for gas optimization
     address internal immutable token1; // Token1 of pair, saved localy and statically for gas optimization
 
+    error InvalidToken();
+    error TransferFailed();
+    error Unauthorized();
+
     constructor(
         address _token0,
         address _token1,
@@ -28,11 +32,9 @@ contract LeetSwapV2Fees {
         address to,
         uint256 value
     ) internal {
-        require(token.code.length > 0);
-        (bool success, bytes memory data) = token.call(
-            abi.encodeWithSelector(IERC20.transfer.selector, to, value)
-        );
-        require(success && (data.length == 0 || abi.decode(data, (bool))));
+        if (token.code.length == 0) revert InvalidToken();
+        bool success = IERC20(token).transfer(to, value);
+        if (!success) revert TransferFailed();
     }
 
     // Allow the pair to transfer fees to users
@@ -41,7 +43,7 @@ contract LeetSwapV2Fees {
         uint256 amount0,
         uint256 amount1
     ) external {
-        require(msg.sender == pair);
+        if (msg.sender != pair) revert Unauthorized();
         if (amount0 > 0) _safeTransfer(token0, recipient, amount0);
         if (amount1 > 0) _safeTransfer(token1, recipient, amount1);
     }

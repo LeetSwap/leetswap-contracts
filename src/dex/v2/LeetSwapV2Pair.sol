@@ -96,6 +96,20 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         uint256 amount
     );
 
+    error DEXPaused();
+    error InvalidToken();
+    error TransferFailed();
+    error InsufficientOutputAmount();
+    error InsufficientInputAmount();
+    error InsufficientLiquidity();
+    error ReentrancyGuard();
+    error DeadlineExpired();
+    error InsufficientLiquidityMinted();
+    error InsufficientLiquidityBurned();
+    error InvariantNotRespected();
+    error InvalidSwapRecipient();
+    error InvalidSignature();
+
     constructor() {
         factory = msg.sender;
         (address _token0, address _token1, bool _stable) = ILeetSwapV2Factory(
@@ -171,7 +185,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
     // simple re-entrancy check
     uint256 internal _unlocked = 1;
     modifier lock() {
-        require(_unlocked == 1);
+        if (_unlocked != 1) revert ReentrancyGuard();
         _unlocked = 2;
         _;
         _unlocked = 1;
@@ -521,7 +535,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
                 (_amount1 * _totalSupply) / _reserve1
             );
         }
-        require(liquidity > 0, "ILM"); // PairV1: INSUFFICIENT_LIQUIDITY_MINTED
+        if (liquidity <= 0) revert InsufficientLiquidityMinted();
         _mint(to, liquidity);
 
         _update(_balance0, _balance1, _reserve0, _reserve1);
@@ -544,7 +558,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         uint256 _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
         amount0 = (_liquidity * _balance0) / _totalSupply; // using balances ensures pro-rata distribution
         amount1 = (_liquidity * _balance1) / _totalSupply; // using balances ensures pro-rata distribution
-        require(amount0 > 0 && amount1 > 0, "ILB"); // PairV1: INSUFFICIENT_LIQUIDITY_BURNED
+        if (amount0 <= 0 || amount1 <= 0) revert InsufficientLiquidityBurned();
         _burn(address(this), _liquidity);
         _safeTransfer(_token0, to, amount0);
         _safeTransfer(_token1, to, amount1);
@@ -562,17 +576,19 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         address to,
         bytes calldata data
     ) external lock {
-        require(!ILeetSwapV2Factory(factory).isPaused());
-        require(amount0Out > 0 || amount1Out > 0, "IOA"); // PairV1: INSUFFICIENT_OUTPUT_AMOUNT
+        if (ILeetSwapV2Factory(factory).isPaused()) revert DEXPaused();
+        if (amount0Out <= 0 && amount1Out <= 0)
+            revert InsufficientOutputAmount();
         (uint256 _reserve0, uint256 _reserve1) = (reserve0, reserve1);
-        require(amount0Out < _reserve0 && amount1Out < _reserve1, "IL"); // PairV1: INSUFFICIENT_LIQUIDITY
+        if (amount0Out >= _reserve0 || amount1Out >= _reserve1)
+            revert InsufficientLiquidity();
 
         uint256 _balance0;
         uint256 _balance1;
         {
             // scope for _token{0,1}, avoids stack too deep errors
             (address _token0, address _token1) = (token0, token1);
-            require(to != _token0 && to != _token1, "IT"); // PairV1: INVALID_TO
+            if (to == _token0 || to == _token1) revert InvalidSwapRecipient();
             if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out); // optimistically transfer tokens
             if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out); // optimistically transfer tokens
             if (data.length > 0)
@@ -591,7 +607,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         uint256 amount1In = _balance1 > _reserve1 - amount1Out
             ? _balance1 - (_reserve1 - amount1Out)
             : 0;
-        require(amount0In > 0 || amount1In > 0, "IIA"); // PairV1: INSUFFICIENT_INPUT_AMOUNT
+        if (amount0In <= 0 && amount1In <= 0) revert InsufficientInputAmount();
         {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
             (address _token0, address _token1) = (token0, token1);
@@ -604,7 +620,8 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
             _balance0 = IERC20Metadata(_token0).balanceOf(address(this)); // since we removed tokens, we need to reconfirm balances, can also simply use previous balance - amountIn/ 10000, but doing balanceOf again as safety check
             _balance1 = IERC20Metadata(_token1).balanceOf(address(this));
             // The curve, either x3y+y3x for stable pools, or x*y for volatile pools
-            require(_k(_balance0, _balance1) >= _k(_reserve0, _reserve1), "K"); // PairV1: K
+            if (_k(_balance0, _balance1) < _k(_reserve0, _reserve1))
+                revert InvariantNotRespected();
         }
 
         _update(_balance0, _balance1, _reserve0, _reserve1);
@@ -769,7 +786,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         bytes32 r,
         bytes32 s
     ) external {
-        require(deadline >= block.timestamp, "PairV1: EXPIRED");
+        if (deadline < block.timestamp) revert DeadlineExpired();
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 keccak256(
@@ -798,10 +815,8 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
             )
         );
         address recoveredAddress = ecrecover(digest, v, r, s);
-        require(
-            recoveredAddress != address(0) && recoveredAddress == owner,
-            "PairV1: INVALID_SIGNATURE"
-        );
+        if (recoveredAddress == address(0) || recoveredAddress != owner)
+            revert InvalidSignature();
         allowance[owner][spender] = value;
 
         emit Approval(owner, spender, value);
@@ -850,10 +865,8 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         address to,
         uint256 value
     ) internal {
-        require(token.code.length > 0);
-        (bool success, bytes memory data) = token.call(
-            abi.encodeWithSelector(IERC20.transfer.selector, to, value)
-        );
-        require(success && (data.length == 0 || abi.decode(data, (bool))));
+        if (token.code.length == 0) revert InvalidToken();
+        bool success = IERC20(token).transfer(to, value);
+        if (!success) revert TransferFailed();
     }
 }

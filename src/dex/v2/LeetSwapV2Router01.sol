@@ -26,9 +26,12 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
     mapping(address => bool) public stablePairs;
     mapping(address => mapping(address => bool)) public useCantoDEXForTokens;
 
+    error InvalidToken();
+    error TransferFailed();
     error TradeExpired();
     error InsufficientOutputAmount();
     error InvalidPath();
+    error InvalidAmount();
     error PairNotFound();
     error CantoTransferFailed();
     error IdenticalAddresses();
@@ -486,8 +489,8 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
         uint256 amountAMin,
         uint256 amountBMin
     ) internal returns (uint256 amountA, uint256 amountB) {
-        require(amountADesired >= amountAMin);
-        require(amountBDesired >= amountBMin);
+        if (amountADesired < amountAMin || amountBDesired < amountBMin)
+            revert InvalidAmount();
         // create the pair if it doesn"t exist yet
         address _pair = ILeetSwapV2Factory(factory).getPair(
             tokenA,
@@ -628,9 +631,8 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
         _startLiquidityManagement(tokenA, tokenB);
 
         address pair = pairFor(tokenA, tokenB);
-        require(
-            ILeetSwapV2Pair(pair).transferFrom(msg.sender, pair, liquidity)
-        ); // send liquidity to pair
+        if (!ILeetSwapV2Pair(pair).transferFrom(msg.sender, pair, liquidity))
+            revert TransferFailed();
         (uint256 amount0, uint256 amount1) = ILeetSwapV2Pair(pair).burn(to);
         (address token0, ) = sortTokens(tokenA, tokenB);
         (amountA, amountB) = tokenA == token0
@@ -709,12 +711,9 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
         address to,
         uint256 value
     ) internal {
-        (bool success, bytes memory data) = token.call(
-            abi.encodeWithSelector(IERC20.transfer.selector, to, value)
-        );
-        require(
-            success && (data.length == 0 || abi.decode(data, (bool)) == true)
-        );
+        if (token.code.length == 0) revert InvalidToken();
+        bool success = IERC20(token).transfer(to, value);
+        if (!success) revert TransferFailed();
     }
 
     function _safeTransferFrom(
@@ -723,9 +722,9 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
         address to,
         uint256 value
     ) internal {
-        IERC20 tokenCon = IERC20(token);
-        bool success = tokenCon.transferFrom(from, to, value);
-        require(success);
+        if (token.code.length == 0) revert InvalidToken();
+        bool success = IERC20(token).transferFrom(from, to, value);
+        if (!success) revert TransferFailed();
     }
 
     function setStablePair(address pair, bool stable) external onlyOwner {

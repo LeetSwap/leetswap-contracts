@@ -33,6 +33,11 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
         uint256
     );
 
+    error IdenticalAddress();
+    error PairExists();
+    error ZeroAddress();
+    error Unauthorized();
+
     constructor(ITurnstile _turnstile) {
         pauser = msg.sender;
         isPaused = false;
@@ -48,17 +53,17 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
     }
 
     function setPauser(address _pauser) external {
-        require(msg.sender == pauser);
+        if (msg.sender != pauser) revert Unauthorized();
         pendingPauser = _pauser;
     }
 
     function acceptPauser() external {
-        require(msg.sender == pendingPauser);
+        if (msg.sender != pendingPauser) revert Unauthorized();
         pauser = pendingPauser;
     }
 
     function setPause(bool _state) external {
-        require(msg.sender == pauser);
+        if (msg.sender != pauser) revert Unauthorized();
         isPaused = _state;
     }
 
@@ -100,12 +105,12 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
         address tokenB,
         bool stable
     ) public returns (address pair) {
-        require(tokenA != tokenB, "IA"); // PairFactoryV1: IDENTICAL_ADDRESSES
+        if (tokenA == tokenB) revert IdenticalAddress();
         (address token0, address token1) = tokenA < tokenB
             ? (tokenA, tokenB)
             : (tokenB, tokenA);
-        require(token0 != address(0), "ZA"); // PairFactoryV1: ZERO_ADDRESS
-        require(_getPair[token0][token1][stable] == address(0), "PE"); // PairFactoryV1: PAIR_EXISTS - single check is sufficient
+        if (token0 == address(0)) revert ZeroAddress();
+        if (_getPair[token0][token1][stable] != address(0)) revert PairExists();
         bytes32 salt = keccak256(abi.encodePacked(token0, token1, stable)); // notice salt includes stable as well, 3 parameters
         (_temp0, _temp1, _temp) = (token0, token1, stable);
         pair = address(new LeetSwapV2Pair{salt: salt}());
