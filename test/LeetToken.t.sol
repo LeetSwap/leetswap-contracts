@@ -3,8 +3,9 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
 
+import {DeployLeetToken, LeetToken} from "../script/DeployLeetToken.s.sol";
+
 import "../script/DeployDEXV2.s.sol";
-import "../script/DeployLeetToken.s.sol";
 
 contract TestLeetToken is Test {
     uint256 mainnetFork;
@@ -51,12 +52,7 @@ contract TestLeetToken is Test {
         vm.deal(address(this), 100 ether);
         weth.deposit{value: 10 ether}();
 
-        vm.prank(leet.owner());
-        leet.enableTrading();
-
         assertEq(leet.balanceOf(leet.owner()), 1337000 * 1e18);
-
-        vm.warp(block.timestamp + leet.sniperSellFeeDecayPeriod());
     }
 
     function testAddLiquidityWithCanto() public {
@@ -110,6 +106,10 @@ contract TestLeetToken is Test {
     }
 
     function testBuyTax() public {
+        vm.prank(leet.owner());
+        leet.enableTrading();
+        vm.warp(block.timestamp + leet.sniperSellFeeDecayPeriod());
+
         testAddLiquidityWithCanto();
         vm.deal(address(this), 1 ether);
 
@@ -132,6 +132,8 @@ contract TestLeetToken is Test {
     }
 
     function testSniperBuyTax() public {
+        vm.prank(leet.owner());
+        leet.enableTrading();
         vm.warp(leet.tradingEnabledTimestamp() + 1);
 
         testAddLiquidityWithCanto();
@@ -159,6 +161,8 @@ contract TestLeetToken is Test {
     }
 
     function testSniperBuyTaxWithNote() public {
+        vm.prank(leet.owner());
+        leet.enableTrading();
         vm.warp(leet.tradingEnabledTimestamp() + 1);
 
         testAddLiquidityWithNote();
@@ -191,6 +195,10 @@ contract TestLeetToken is Test {
     }
 
     function testSellTax() public {
+        vm.prank(leet.owner());
+        leet.enableTrading();
+        vm.warp(block.timestamp + leet.sniperSellFeeDecayPeriod());
+
         testAddLiquidityWithCanto();
         vm.deal(address(this), 0 ether);
 
@@ -223,6 +231,8 @@ contract TestLeetToken is Test {
     }
 
     function testSniperSellTax() public {
+        vm.prank(leet.owner());
+        leet.enableTrading();
         vm.warp(leet.tradingEnabledTimestamp() + 1);
 
         testAddLiquidityWithCanto();
@@ -259,15 +269,17 @@ contract TestLeetToken is Test {
     }
 
     function testSniperBuyFeeGetter() public {
+        vm.prank(leet.owner());
+        leet.enableTrading();
         vm.warp(leet.tradingEnabledTimestamp());
 
         uint256 sniperBuyBaseFee = 2000;
-        uint256 decayPeriod = 10 minutes;
+        uint256 decayPeriod = 15 minutes;
         uint256 decayStart = block.timestamp;
 
         assertEq(leet.sniperBuyFee(), sniperBuyBaseFee);
 
-        vm.warp(decayStart + 7 minutes + 30 seconds);
+        vm.warp(decayStart + 11 minutes + 15 seconds);
         assertEq(leet.sniperBuyFee(), 500);
 
         vm.warp(decayStart + decayPeriod / 2);
@@ -281,6 +293,8 @@ contract TestLeetToken is Test {
     }
 
     function testSniperSellFeeGetter() public {
+        vm.prank(leet.owner());
+        leet.enableTrading();
         vm.warp(leet.tradingEnabledTimestamp());
 
         uint256 sniperSellBaseFee = 2000;
@@ -364,6 +378,9 @@ contract TestLeetToken is Test {
     }
 
     function testMaxSwapFeesAmount() public {
+        vm.prank(leet.owner());
+        leet.enableTrading();
+
         testAddLiquidityWithNote();
 
         vm.prank(leet.owner());
@@ -383,6 +400,56 @@ contract TestLeetToken is Test {
         leet.transfer(address(42), 0);
         assertTrue(note.balanceOf(leet.treasuryFeeRecipient()) > 0);
         assertEq(note.balanceOf(leet.treasuryFeeRecipient()), amountOut);
+    }
+
+    function testSetTradingEnabledTimestamp() public {
+        testAddLiquidityWithNote();
+
+        uint256 tradingEnabledTimestamp = block.timestamp + 1 days;
+        vm.prank(leet.owner());
+        leet.setTradingEnabledTimestamp(tradingEnabledTimestamp);
+
+        address[] memory path = new address[](2);
+        path[0] = address(note);
+        path[1] = address(leet);
+
+        uint256 amountIn = 1 ether;
+        vm.prank(noteAccountant);
+        note.transfer(address(this), amountIn);
+        note.approve(address(router), amountIn);
+
+        vm.expectRevert(LeetToken.TradingNotEnabled.selector);
+        router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            amountIn,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        vm.prank(leet.owner());
+        leet.enableTrading();
+
+        vm.expectRevert(LeetToken.TradingNotEnabled.selector);
+        router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            amountIn,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        vm.warp(tradingEnabledTimestamp);
+        router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            amountIn,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        assertEq(leet.sniperBuyFee(), leet.sniperBuyBaseFee());
+        assertEq(leet.sniperSellFee(), leet.sniperSellBaseFee());
     }
 
     receive() external payable {}

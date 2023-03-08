@@ -3,9 +3,10 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
 
-import "../script/DeployDEXV2.s.sol";
-import "../script/DeployLeetToken.s.sol";
 import "../script/DeployLeetChefV1.s.sol";
+
+import {DeployLeetToken, LeetToken} from "../script/DeployLeetToken.s.sol";
+import "../script/DeployDEXV2.s.sol";
 
 contract TestLeetChefV1 is Test {
     uint256 mainnetFork;

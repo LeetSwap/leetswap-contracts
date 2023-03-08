@@ -41,7 +41,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     uint256 public maxSwapFeesAmount;
 
     uint256 public sniperBuyBaseFee = 2000;
-    uint256 public sniperBuyFeeDecayPeriod = 10 minutes;
+    uint256 public sniperBuyFeeDecayPeriod = 15 minutes;
     uint256 public sniperBuyFeeBurnShare = 2500;
     bool public sniperBuyFeeEnabled = true;
 
@@ -68,6 +68,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     error TradingNotEnabled();
     error TradingAlreadyEnabled();
+    error TimestampIsInThePast();
     error FeeTooHigh();
     error InvalidFeeRecipient();
     error NotLiquidityManager();
@@ -112,8 +113,8 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         _mint(owner(), 1337000 * 10**decimals());
 
         swapFeesRouter = router;
-        swapFeesAtAmount = (totalSupply() * 1) / 1e4;
-        maxSwapFeesAmount = (totalSupply() * 1) / 1e4;
+        swapFeesAtAmount = (totalSupply() * 1) / 1e5;
+        maxSwapFeesAmount = (totalSupply() * 3) / 1e5;
     }
 
     modifier onlyLiquidityManager() {
@@ -317,7 +318,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         uint256 amount
     ) internal override {
         if (
-            !tradingEnabled &&
+            !(tradingEnabled && tradingEnabledTimestamp <= block.timestamp) &&
             !isExcludedFromFee[sender] &&
             !isExcludedFromFee[recipient]
         ) {
@@ -539,8 +540,24 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     function enableTrading() public onlyOwner {
         if (tradingEnabled) revert TradingAlreadyEnabled();
         tradingEnabled = true;
-        tradingEnabledTimestamp = block.timestamp;
+
+        if (tradingEnabledTimestamp < block.timestamp) {
+            tradingEnabledTimestamp = block.timestamp;
+        }
+
         swappingFeesEnabled = true;
+    }
+
+    function setTradingEnabledTimestamp(uint256 _timestamp) public onlyOwner {
+        if (tradingEnabled && tradingEnabledTimestamp <= block.timestamp) {
+            revert TradingAlreadyEnabled();
+        }
+
+        if (tradingEnabled && _timestamp < block.timestamp) {
+            revert TimestampIsInThePast();
+        }
+
+        tradingEnabledTimestamp = _timestamp;
     }
 
     function setPairAutoDetectionEnabled(bool _pairAutoDetectionEnabled)
