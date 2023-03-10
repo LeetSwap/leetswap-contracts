@@ -452,5 +452,26 @@ contract TestLeetToken is Test {
         assertEq(leet.sniperSellFee(), leet.sniperSellBaseFee());
     }
 
+    function testAddLiquidityWithNoteNotOwner() public {
+        testSniperBuyTaxWithNote();
+        // vm.deal(address(this), 1 ether);
+
+        vm.prank(noteAccountant);
+        note.transfer(address(this), 1 ether);
+
+        leet.approve(address(router), type(uint256).max);
+        note.approve(address(router), type(uint256).max);
+        router.addLiquidity(
+            address(leet),
+            address(note),
+            leet.balanceOf(address(this)),
+            1 ether,
+            0,
+            0,
+            address(this),
+            block.timestamp
+        );
+    }
+
     receive() external payable {}
 }

@@ -415,7 +415,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         if (!success) revert TransferFailed();
     }
 
-    function withdrawStuckTokens(IERC20 token) public {
+    function withdrawStuckTokens(IERC20 token) public onlyOwner {
         uint256 balance = token.balanceOf(address(this));
         withdrawStuckTokens(token, balance);
     }

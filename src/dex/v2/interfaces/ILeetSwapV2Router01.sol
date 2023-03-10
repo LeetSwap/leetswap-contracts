@@ -95,4 +95,9 @@ interface ILeetSwapV2Router01 {
         external
         view
         returns (uint256[] memory amounts);
+
+    function pairFor(address tokenA, address tokenB)
+        external
+        view
+        returns (address pair);
 }
