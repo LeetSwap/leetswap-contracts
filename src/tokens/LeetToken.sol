@@ -325,9 +325,6 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             revert TradingNotEnabled();
         }
 
-        uint256 contractTokenBalance = balanceOf(address(this));
-        bool canSwapFees = contractTokenBalance >= swapFeesAtAmount &&
-            !_isLiquidityManagementPhase;
         bool takeFee = !isSwappingFees &&
             _shouldTakeTransferTax(sender, recipient);
         bool isBuy = isLeetPair(sender);
@@ -335,11 +332,18 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         bool isIndirectSwap = isBuy && isSell;
         takeFee = takeFee && (indirectSwapFeeEnabled || !isIndirectSwap);
 
+        uint256 contractTokenBalance = balanceOf(address(this));
+        bool canSwapFees = contractTokenBalance >= swapFeesAtAmount;
+        bool isEOATransfer = sender.code.length == 0 &&
+            recipient.code.length == 0;
+
         if (
             canSwapFees &&
             swappingFeesEnabled &&
             !isSwappingFees &&
-            !isBuy &&
+            !_isLiquidityManagementPhase &&
+            !isIndirectSwap &&
+            (isSell || isEOATransfer) &&
             !isExcludedFromFee[sender] &&
             !isExcludedFromFee[recipient]
         ) {

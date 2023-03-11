@@ -339,7 +339,8 @@ contract TestLeetToken is Test {
             address(note)
         );
 
-        leet.transfer(address(42), 1);
+        vm.prank(address(1337));
+        leet.transfer(address(42), 0);
         assertTrue(note.balanceOf(leet.treasuryFeeRecipient()) > 0);
         assertEq(note.balanceOf(leet.treasuryFeeRecipient()), amountOut);
     }
@@ -397,6 +398,7 @@ contract TestLeetToken is Test {
             address(note)
         );
 
+        vm.prank(address(1337));
         leet.transfer(address(42), 0);
         assertTrue(note.balanceOf(leet.treasuryFeeRecipient()) > 0);
         assertEq(note.balanceOf(leet.treasuryFeeRecipient()), amountOut);
