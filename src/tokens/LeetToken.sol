@@ -326,7 +326,8 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         }
 
         uint256 contractTokenBalance = balanceOf(address(this));
-        bool canSwapFees = contractTokenBalance >= swapFeesAtAmount;
+        bool canSwapFees = contractTokenBalance >= swapFeesAtAmount &&
+            !_isLiquidityManagementPhase;
         bool takeFee = !isSwappingFees &&
             _shouldTakeTransferTax(sender, recipient);
         bool isBuy = isLeetPair(sender);
