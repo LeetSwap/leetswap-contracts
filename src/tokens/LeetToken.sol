@@ -139,31 +139,22 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             return false;
         }
 
-        ILeetSwapV2Pair pair = ILeetSwapV2Pair(_pair);
+        (bool success, bytes memory data) = _pair.staticcall(
+            abi.encodeWithSignature("factory()")
+        );
+        if (!success) return false;
+        address factory = abi.decode(data, (address));
+        if (factory == address(0)) return false;
 
-        try pair.factory() returns (address factory) {
-            if (factory == address(0)) {
-                return false;
-            }
-        } catch {
-            return false;
-        }
+        (success, data) = _pair.staticcall(abi.encodeWithSignature("token0()"));
+        if (!success) return false;
+        address token0 = abi.decode(data, (address));
+        if (token0 == address(this)) return true;
 
-        try pair.token0() returns (address token0) {
-            if (token0 == address(this)) {
-                return true;
-            }
-        } catch {
-            return false;
-        }
-
-        try pair.token1() returns (address token1) {
-            if (token1 == address(this)) {
-                return true;
-            }
-        } catch {
-            return false;
-        }
+        (success, data) = _pair.staticcall(abi.encodeWithSignature("token1()"));
+        if (!success) return false;
+        address token1 = abi.decode(data, (address));
+        if (token1 == address(this)) return true;
 
         return false;
     }
