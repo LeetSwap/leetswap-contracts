@@ -55,9 +55,13 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     mapping(address => bool) public isExcludedFromFee;
     mapping(address => bool) public isLiquidityManager;
+    mapping(address => bool) public isWhitelistedFactory;
 
     bool internal _isLiquidityManagementPhase;
+    uint256 internal _currentCacheVersion;
     mapping(address => bool) internal _isLeetPair;
+    mapping(uint256 => mapping(address => bool))
+        internal _isCachedAutodetectedLeetPair;
 
     event BuyFeeUpdated(uint256 _fee, uint256 _previousFee);
     event SellFeeUpdated(uint256 _fee, uint256 _previousFee);
@@ -65,6 +69,8 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     event LeetPairRemoved(address _pair);
     event AddressExcludedFromFees(address _address);
     event AddressIncludedInFees(address _address);
+    event WhitelistedFactoryAdded(address _factory);
+    event WhitelistedFactoryRemoved(address _factory);
 
     error TradingNotEnabled();
     error TradingAlreadyEnabled();
@@ -103,6 +109,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         treasuryFeeRecipient = owner();
 
         isLiquidityManager[address(router)] = true;
+        isWhitelistedFactory[address(factory)] = true;
 
         address pair = factory.createPair(address(this), router.WETH());
         address notePair = factory.createPair(address(this), NOTE);
@@ -126,13 +133,17 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     /************************************************************************/
 
-    function isLeetPair(address _pair) public view returns (bool isPair) {
+    function isLeetPair(address _pair) public returns (bool isPair) {
         if (_isLeetPair[_pair]) {
             return true;
         }
 
         if (!pairAutoDetectionEnabled) {
             return false;
+        }
+
+        if (_isCachedAutodetectedLeetPair[_currentCacheVersion][_pair]) {
+            return true;
         }
 
         if (_pair.code.length == 0) {
@@ -146,22 +157,40 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         address factory = abi.decode(data, (address));
         if (factory == address(0)) return false;
 
+        bool isVerifiedPair = isWhitelistedFactory[factory] &&
+            ILeetSwapV2Factory(factory).isPair(_pair);
+
         (success, data) = _pair.staticcall(abi.encodeWithSignature("token0()"));
         if (!success) return false;
         address token0 = abi.decode(data, (address));
-        if (token0 == address(this)) return true;
+        if (token0 == address(this)) {
+            if (isVerifiedPair) {
+                _isCachedAutodetectedLeetPair[_currentCacheVersion][
+                    _pair
+                ] = true;
+            }
+
+            return true;
+        }
 
         (success, data) = _pair.staticcall(abi.encodeWithSignature("token1()"));
         if (!success) return false;
         address token1 = abi.decode(data, (address));
-        if (token1 == address(this)) return true;
+        if (token1 == address(this)) {
+            if (isVerifiedPair) {
+                _isCachedAutodetectedLeetPair[_currentCacheVersion][
+                    _pair
+                ] = true;
+            }
+
+            return true;
+        }
 
         return false;
     }
 
     function _shouldTakeTransferTax(address sender, address recipient)
         internal
-        view
         returns (bool)
     {
         if (isExcludedFromFee[sender] || isExcludedFromFee[recipient]) {
@@ -320,7 +349,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             _shouldTakeTransferTax(sender, recipient);
         bool isBuy = isLeetPair(sender);
         bool isSell = isLeetPair(recipient);
-        bool isIndirectSwap = isBuy && isSell;
+        bool isIndirectSwap = (_isLeetPair[sender] ||
+            _isCachedAutodetectedLeetPair[_currentCacheVersion][sender]) &&
+            (_isLeetPair[recipient] ||
+                _isCachedAutodetectedLeetPair[_currentCacheVersion][recipient]);
         takeFee = takeFee && (indirectSwapFeeEnabled || !isIndirectSwap);
 
         uint256 contractTokenBalance = balanceOf(address(this));
@@ -524,6 +556,15 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         onlyOwner
     {
         isLiquidityManager[_liquidityManager] = _isManager;
+    }
+
+    function addWhitelistedFactory(address _factory) public onlyOwner {
+        isWhitelistedFactory[_factory] = true;
+    }
+
+    function removeWhitelistedFactory(address _factory) public onlyOwner {
+        isWhitelistedFactory[_factory] = false;
+        _currentCacheVersion++;
     }
 
     function setIndirectSwapFeeEnabled(bool _indirectSwapFeeEnabled)
