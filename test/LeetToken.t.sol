@@ -55,15 +55,17 @@ contract TestLeetToken is Test {
         assertEq(leet.balanceOf(leet.owner()), 1337000 * 1e18);
     }
 
-    function testAddLiquidityWithCanto() public {
+    function addLiquidityWithCanto(uint256 tokenAmount, uint256 cantoAmount)
+        public
+    {
         address liquidityManager = leet.owner();
 
         vm.startPrank(liquidityManager);
 
-        leet.approve(address(router), 800e3 ether);
-        router.addLiquidityETH{value: 10 ether}(
+        leet.approve(address(router), tokenAmount);
+        router.addLiquidityETH{value: cantoAmount}(
             address(leet),
-            800e3 ether,
+            tokenAmount,
             0,
             0,
             liquidityManager,
@@ -71,6 +73,36 @@ contract TestLeetToken is Test {
         );
 
         vm.stopPrank();
+    }
+
+    function addLiquidityWithNote(uint256 tokenAmount, uint256 noteAmount)
+        public
+    {
+        address liquidityManager = leet.owner();
+
+        vm.prank(noteAccountant);
+        note.transfer(liquidityManager, noteAmount);
+
+        vm.startPrank(liquidityManager);
+
+        leet.approve(address(router), tokenAmount);
+        note.approve(address(router), noteAmount);
+        router.addLiquidity(
+            address(leet),
+            address(note),
+            tokenAmount,
+            noteAmount,
+            0,
+            0,
+            liquidityManager,
+            block.timestamp
+        );
+
+        vm.stopPrank();
+    }
+
+    function testAddLiquidityWithCanto() public {
+        addLiquidityWithCanto(800e3 ether, 10 ether);
 
         address pair = factory.getPair(address(leet), address(weth));
         assertEq(leet.balanceOf(pair), 800e3 ether);
@@ -78,27 +110,7 @@ contract TestLeetToken is Test {
     }
 
     function testAddLiquidityWithNote() public {
-        address liquidityManager = leet.owner();
-
-        vm.prank(noteAccountant);
-        note.transfer(liquidityManager, 10 ether);
-
-        vm.startPrank(liquidityManager);
-
-        leet.approve(address(router), 800e3 ether);
-        note.approve(address(router), 10 ether);
-        router.addLiquidity(
-            address(leet),
-            address(note),
-            800e3 ether,
-            10 ether,
-            0,
-            0,
-            liquidityManager,
-            block.timestamp
-        );
-
-        vm.stopPrank();
+        addLiquidityWithNote(800e3 ether, 10 ether);
 
         address pair = factory.getPair(address(leet), address(note));
         assertEq(leet.balanceOf(pair), 800e3 ether);
@@ -129,6 +141,64 @@ contract TestLeetToken is Test {
         );
 
         assertEq(leet.balanceOf(address(this)), amountOutAfterTax);
+    }
+
+    function testIndirectSwapTaxEnabled() public {
+        vm.startPrank(leet.owner());
+        leet.enableTrading();
+        leet.setIndirectSwapFeeEnabled(true);
+        vm.stopPrank();
+        vm.warp(block.timestamp + leet.sniperSellFeeDecayPeriod());
+
+        addLiquidityWithCanto(400e3 ether, 5 ether);
+        addLiquidityWithNote(400e3 ether, 5 ether);
+        vm.deal(address(this), 1 ether);
+
+        address[] memory path = new address[](3);
+        path[0] = address(weth);
+        path[1] = address(leet);
+        path[2] = address(note);
+
+        uint256 leetAmountOut = router.getAmountOut(1 ether, path[0], path[1]);
+        uint256 tax = (leetAmountOut * leet.totalSellFee()) /
+            leet.FEE_DENOMINATOR();
+        uint256 leetAmountOutAfterTax = leetAmountOut - tax;
+        uint256 noteAmountOut = router.getAmountOut(
+            leetAmountOutAfterTax,
+            path[1],
+            path[2]
+        );
+
+        assertEq(note.balanceOf(address(this)), 0);
+        router.swapExactETHForTokensSupportingFeeOnTransferTokens{
+            value: 1 ether
+        }(0, path, address(this), block.timestamp);
+
+        assertEq(note.balanceOf(address(this)), noteAmountOut);
+    }
+
+    function testIndirectSwapTaxDisabled() public {
+        vm.prank(leet.owner());
+        leet.enableTrading();
+        vm.warp(block.timestamp + leet.sniperSellFeeDecayPeriod());
+
+        addLiquidityWithCanto(400e3 ether, 5 ether);
+        addLiquidityWithNote(400e3 ether, 5 ether);
+        vm.deal(address(this), 1 ether);
+
+        address[] memory path = new address[](3);
+        path[0] = address(weth);
+        path[1] = address(leet);
+        path[2] = address(note);
+
+        uint256 noteAmountOut = router.getAmountsOut(1 ether, path)[2];
+        assertEq(note.balanceOf(address(this)), 0);
+
+        router.swapExactETHForTokensSupportingFeeOnTransferTokens{
+            value: 1 ether
+        }(0, path, address(this), block.timestamp);
+
+        assertEq(note.balanceOf(address(this)), noteAmountOut);
     }
 
     function testSniperBuyTax() public {
