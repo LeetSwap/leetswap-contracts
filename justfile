@@ -76,6 +76,11 @@ deploy-leet-token router:
 
     just run-forge-script DeployLeetToken "run(address)" {{router}}
 
+launch-leet-token router noteLiquidityAmount launchTimestamp:
+    #!/bin/sh
+
+    just run-forge-script DeployLeetToken "deployAndLaunch(address,uint256,uint256)" {{router}} {{noteLiquidityAmount}} {{launchTimestamp}}
+
 leet-token-add-pair leet pair:
     #!/bin/sh
 

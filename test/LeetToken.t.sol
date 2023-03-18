@@ -624,5 +624,71 @@ contract TestLeetToken is Test {
         );
     }
 
+    function testDeployAndLaunch() public {
+        uint256 noteLiquidityAmount = 5000 ether;
+        vm.prank(noteAccountant);
+        note.transfer(address(this), noteLiquidityAmount);
+
+        vm.startPrank(noteAccountant);
+        note.transfer(leet.owner(), noteLiquidityAmount);
+        vm.stopPrank();
+
+        (LeetToken _leet, LeetChefV1 _chef, LeetBar _bar) = leetDeployer
+            .deployAndLaunch(router, noteLiquidityAmount, block.timestamp + 1);
+        leet = _leet;
+
+        address pair = factory.getPair(address(leet), address(note));
+        assertEq(note.balanceOf(pair), noteLiquidityAmount);
+        assertEq(leet.balanceOf(address(_bar)), 1337 ether);
+        assertEq(
+            IERC20(pair).balanceOf(address(_chef)),
+            IERC20(pair).totalSupply() - 1e3
+        );
+
+        vm.warp(leet.tradingEnabledTimestamp() + 1);
+
+        vm.prank(noteAccountant);
+        note.transfer(address(this), 1 ether);
+        vm.deal(address(this), 1 ether);
+
+        address[] memory path = new address[](2);
+        path[0] = address(note);
+        path[1] = address(leet);
+
+        uint256 amountOut = router.getAmountOut(1 ether, path[0], path[1]);
+        uint256 buyTax = (amountOut * leet.totalBuyFee()) /
+            leet.FEE_DENOMINATOR();
+        uint256 sniperBuyTax = (amountOut * leet.sniperBuyFee()) /
+            leet.FEE_DENOMINATOR();
+        uint256 amountOutAfterTax = amountOut - buyTax - sniperBuyTax;
+
+        note.approve(address(router), UINT256_MAX);
+        router.swapExactTokensForTokens(
+            1 ether,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        assertEq(leet.balanceOf(address(this)), amountOutAfterTax);
+
+        vm.prank(noteAccountant);
+        note.transfer(address(this), 1 ether);
+
+        leet.approve(address(router), type(uint256).max);
+        note.approve(address(router), type(uint256).max);
+        router.addLiquidity(
+            address(leet),
+            address(note),
+            leet.balanceOf(address(this)),
+            1 ether,
+            0,
+            0,
+            address(this),
+            block.timestamp + 60
+        );
+    }
+
     receive() external payable {}
 }
