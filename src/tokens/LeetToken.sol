@@ -5,6 +5,7 @@ import "@leetswap/interfaces/ILiquidityManageable.sol";
 import "@leetswap/dex/v2/interfaces/ILeetSwapV2Router01.sol";
 import "@leetswap/dex/v2/interfaces/ILeetSwapV2Factory.sol";
 import "@leetswap/dex/v2/interfaces/ILeetSwapV2Pair.sol";
+import "@leetswap/tokens/interfaces/IFeeDiscountOracle.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -35,6 +36,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     uint256 public tradingEnabledTimestamp = 0; // 0 means trading is not active
 
     ILeetSwapV2Router01 swapFeesRouter;
+    IFeeDiscountOracle feeDiscountOracle;
     bool public swappingFeesEnabled;
     bool public isSwappingFees;
     uint256 public swapFeesAtAmount;
@@ -120,8 +122,8 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         _mint(owner(), 1337000 * 10**decimals());
 
         swapFeesRouter = router;
-        swapFeesAtAmount = (totalSupply() * 1) / 1e5;
-        maxSwapFeesAmount = (totalSupply() * 3) / 1e5;
+        swapFeesAtAmount = (totalSupply() * 5) / 1e5;
+        maxSwapFeesAmount = (totalSupply() * 1) / 1e4;
     }
 
     modifier onlyLiquidityManager() {
@@ -238,13 +240,36 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     /************************************************************************/
 
-    function _takeBuyFee(address sender, uint256 amount)
+    function buyFeeDiscountFor(address account, uint256 transferAmount)
         public
+        view
+        returns (uint256)
+    {
+        if (address(feeDiscountOracle) == address(0)) return 0;
+        return feeDiscountOracle.buyFeeDiscountFor(account, transferAmount);
+    }
+
+    function sellFeeDiscountFor(address account, uint256 transferAmount)
+        public
+        view
+        returns (uint256)
+    {
+        if (address(feeDiscountOracle) == address(0)) return 0;
+        return feeDiscountOracle.sellFeeDiscountFor(account, transferAmount);
+    }
+
+    function _takeBuyFee(address sender, uint256 amount)
+        internal
         returns (uint256)
     {
         if (totalBuyFee == 0) return 0;
 
         uint256 totalFeeAmount = (amount * totalBuyFee) / FEE_DENOMINATOR;
+        uint256 feeDiscountAmount = buyFeeDiscountFor(sender, amount);
+
+        totalFeeAmount -= feeDiscountAmount;
+        if (totalFeeAmount == 0) return 0;
+
         uint256 burnFeeAmount = (totalFeeAmount * burnBuyFee) / totalBuyFee;
         uint256 farmsFeeAmount = (totalFeeAmount * farmsBuyFee) / totalBuyFee;
         uint256 stakingFeeAmount = (totalFeeAmount * stakingBuyFee) /
@@ -269,12 +294,17 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     }
 
     function _takeSellFee(address sender, uint256 amount)
-        public
+        internal
         returns (uint256)
     {
         if (totalSellFee == 0) return 0;
 
         uint256 totalFeeAmount = (amount * totalSellFee) / FEE_DENOMINATOR;
+        uint256 feeDiscountAmount = sellFeeDiscountFor(sender, amount);
+
+        totalFeeAmount -= feeDiscountAmount;
+        if (totalFeeAmount == 0) return 0;
+
         uint256 burnFeeAmount = (totalFeeAmount * burnSellFee) / totalSellFee;
         uint256 farmsFeeAmount = (totalFeeAmount * farmsSellFee) / totalSellFee;
         uint256 stakingFeeAmount = (totalFeeAmount * stakingSellFee) /
@@ -299,7 +329,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     }
 
     function _takeSniperBuyFee(address sender, uint256 amount)
-        public
+        internal
         returns (uint256)
     {
         uint256 totalFeeAmount = (amount * sniperBuyFee()) / FEE_DENOMINATOR;
@@ -316,7 +346,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     }
 
     function _takeSniperSellFee(address sender, uint256 amount)
-        public
+        internal
         returns (uint256)
     {
         uint256 totalFeeAmount = (amount * sniperSellFee()) / FEE_DENOMINATOR;
@@ -635,5 +665,9 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     function setSwapFeesRouter(address _swapFeesRouter) public onlyOwner {
         swapFeesRouter = ILeetSwapV2Router01(_swapFeesRouter);
+    }
+
+    function setFeeDiscountOracle(IFeeDiscountOracle _oracle) public onlyOwner {
+        feeDiscountOracle = _oracle;
     }
 }

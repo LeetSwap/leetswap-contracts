@@ -3,8 +3,10 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
 
-import {DeployLeetToken, LeetToken} from "../script/DeployLeetToken.s.sol";
+import "./doubles/StubFeeDiscountOracle.sol";
 
+import {DeployLeetToken, LeetToken, LeetChefV1, LeetBar} from "../script/DeployLeetToken.s.sol";
+import "@leetswap/tokens/interfaces/IFeeDiscountOracle.sol";
 import "../script/DeployDEXV2.s.sol";
 
 contract TestLeetToken is Test {
@@ -291,6 +293,83 @@ contract TestLeetToken is Test {
 
         router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             1 ether,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        assertEq(address(this).balance, amountOut);
+    }
+
+    function testBuyFeeDiscount() public {
+        uint256 taxDiscount = 0.5 ether;
+        IFeeDiscountOracle oracle = new StubFeeDiscountOracle(taxDiscount);
+
+        vm.startPrank(leet.owner());
+        leet.setFeeDiscountOracle(oracle);
+        leet.enableTrading();
+        vm.stopPrank();
+        vm.warp(block.timestamp + leet.sniperSellFeeDecayPeriod());
+
+        testAddLiquidityWithCanto();
+        vm.deal(address(this), 1 ether);
+
+        address[] memory path = new address[](2);
+        path[0] = address(weth);
+        path[1] = address(leet);
+
+        uint256 amountOut = router.getAmountOut(1 ether, path[0], path[1]);
+        uint256 tax = (amountOut * leet.totalBuyFee()) /
+            leet.FEE_DENOMINATOR() -
+            taxDiscount;
+        uint256 amountOutAfterTax = amountOut - tax;
+
+        router.swapExactETHForTokens{value: 1 ether}(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        assertEq(leet.balanceOf(address(this)), amountOutAfterTax);
+    }
+
+    function testSellFeeDiscount() public {
+        uint256 taxDiscount = 0.5 ether;
+        IFeeDiscountOracle oracle = new StubFeeDiscountOracle(taxDiscount);
+
+        vm.startPrank(leet.owner());
+        leet.setFeeDiscountOracle(oracle);
+        leet.enableTrading();
+        vm.stopPrank();
+        vm.warp(block.timestamp + leet.sniperSellFeeDecayPeriod());
+
+        testAddLiquidityWithCanto();
+        vm.deal(address(this), 0 ether);
+
+        uint256 sellAmount = 50e3 ether;
+        vm.prank(leet.owner());
+        leet.transfer(address(this), sellAmount);
+
+        address[] memory path = new address[](2);
+        path[0] = address(leet);
+        path[1] = address(weth);
+
+        uint256 amountInAfterTax = sellAmount -
+            (sellAmount * leet.totalSellFee()) /
+            leet.FEE_DENOMINATOR() +
+            taxDiscount;
+        uint256 amountOut = router.getAmountOut(
+            amountInAfterTax,
+            path[0],
+            path[1]
+        );
+
+        assertEq(address(this).balance, 0);
+        leet.approve(address(router), UINT256_MAX);
+        router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            sellAmount,
             0,
             path,
             address(this),
