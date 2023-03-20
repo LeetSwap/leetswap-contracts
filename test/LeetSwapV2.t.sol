@@ -1908,6 +1908,79 @@ contract TestLeetSwapV2 is Test {
         assertEq(claimable1, 0);
     }
 
+    function testClaimLPFeesTransfer() public {
+        (address _token0, address _token1) = router.sortTokens(
+            address(token0),
+            address(token1)
+        );
+
+        IERC20(_token0).approve(address(router), 1 ether);
+        IERC20(_token1).approve(address(router), 1 ether);
+
+        (, , uint256 liquidity) = router.addLiquidity(
+            _token0,
+            _token1,
+            1 ether,
+            1 ether,
+            1 ether,
+            1 ether,
+            address(this),
+            block.timestamp + 1
+        );
+
+        LeetSwapV2Pair pair = LeetSwapV2Pair(
+            factory.getPair(_token0, _token1, false)
+        );
+        vm.label(address(pair), pair.symbol());
+        vm.label(pair.fees(), "Fees");
+        assertEq(pair.balanceOf(address(this)), liquidity);
+        pair.approve(address(router), type(uint256).max);
+
+        address[] memory path = new address[](2);
+        path[0] = _token0;
+        path[1] = _token1;
+
+        uint256 amountIn = 1 ether;
+        IERC20(_token0).approve(address(router), amountIn);
+        router.swapExactTokensForTokens(
+            amountIn,
+            0,
+            path,
+            address(this),
+            block.timestamp + 1
+        );
+
+        uint256 tradingFees = factory.tradingFees(address(pair), address(this));
+        assertEq(tradingFees, 30);
+        (uint256 claimable0, uint256 claimable1) = pair.claimableFeesFor(
+            address(this)
+        );
+        assertEq(
+            claimable0,
+            (amountIn * tradingFees * liquidity) / 1e4 / pair.totalSupply()
+        );
+        assertEq(claimable1, 0);
+
+        pair.transfer(address(42), liquidity);
+        (claimable0, claimable1) = pair.claimableFeesFor(address(42));
+        assertEq(claimable0, 0);
+        assertEq(claimable1, 0);
+
+        vm.prank(address(42));
+        pair.transfer(address(this), liquidity);
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
+        assertEq(
+            claimable0,
+            (amountIn * tradingFees * liquidity) / 1e4 / pair.totalSupply()
+        );
+        assertEq(claimable1, 0);
+
+        pair.claimFees();
+        (claimable0, claimable1) = pair.claimableFeesFor(address(this));
+        assertEq(claimable0, 0);
+        assertEq(claimable1, 0);
+    }
+
     function testProtocolFees() public {
         vm.startPrank(factory.owner());
         factory.setProtocolFeesShare(2750);
