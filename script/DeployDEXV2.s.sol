@@ -44,11 +44,9 @@ contract DeployDEXV2 is Test {
         address eth = 0x5FD55A1B9FC24967C4dB09C513C3BA0DFa7FF687;
         address atom = 0xecEEEfCEE421D8062EF8d6b4D814efe4dc898265;
         address usdt = 0xd567B3d7B8FE3C79a1AD8dA978812cfC4Fa05e75;
-        address upsample = 0x069C4887f2eafCbE7D3572e13b449A02B31D260C;
         address bank = 0x6f6BAe4110eCC33fE4E330b16b8df2A5E9807658;
         address topg = 0xe350b49e52c9d865735BFD77c956f64585Be7583;
 
-        router.setCantoDEXForTokens(upsample, note, true);
         router.setCantoDEXForTokens(bank, wcanto, true);
         router.setCantoDEXForTokens(topg, wcanto, true);
         router.setCantoDEXForTokens(note, usdc, true);
