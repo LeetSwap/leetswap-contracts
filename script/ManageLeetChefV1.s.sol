@@ -43,4 +43,22 @@ contract ManageLeetChefV1 is Test {
         vm.broadcast();
         leetChef.setPrimaryTokenPerSecond(emissionsPerSecond, true);
     }
+
+    function claimAllLPFees(LeetChefV1 leetChef) public {
+        vm.broadcast();
+        leetChef.claimAllLPFees();
+    }
+
+    function pendingPrimaryToken(LeetChefV1 leetChef, uint256 pid)
+        public
+        view
+        returns (uint256)
+    {
+        return leetChef.pendingPrimaryToken(pid, msg.sender);
+    }
+
+    function withdrawLeet(LeetChefV1 chef, uint256 amount) public {
+        vm.broadcast();
+        chef.reclaimPrimaryToken(amount);
+    }
 }
