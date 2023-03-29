@@ -58,6 +58,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     mapping(address => bool) public isExcludedFromFee;
     mapping(address => bool) public isLiquidityManager;
     mapping(address => bool) public isWhitelistedFactory;
+    mapping(address => bool) public isBot;
 
     bool internal _isLiquidityManagementPhase;
     uint256 internal _currentCacheVersion;
@@ -76,6 +77,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     error TradingNotEnabled();
     error TradingAlreadyEnabled();
+    error SniperBotDetected();
     error TimestampIsInThePast();
     error FeeTooHigh();
     error InvalidFeeRecipient();
@@ -375,6 +377,8 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             revert TradingNotEnabled();
         }
 
+        if (isBot[sender] || isBot[recipient]) revert SniperBotDetected();
+
         bool takeFee = !isSwappingFees &&
             _shouldTakeTransferTax(sender, recipient);
         bool isBuy = isLeetPair(sender);
@@ -669,5 +673,13 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     function setFeeDiscountOracle(IFeeDiscountOracle _oracle) public onlyOwner {
         feeDiscountOracle = _oracle;
+    }
+
+    function addBot(address account) public onlyOwner {
+        isBot[account] = true;
+    }
+
+    function removeBot(address account) public onlyOwner {
+        isBot[account] = false;
     }
 }
