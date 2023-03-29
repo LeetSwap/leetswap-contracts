@@ -260,14 +260,15 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         return feeDiscountOracle.sellFeeDiscountFor(account, transferAmount);
     }
 
-    function _takeBuyFee(address sender, uint256 amount)
-        internal
-        returns (uint256)
-    {
+    function _takeBuyFee(
+        address sender,
+        address user,
+        uint256 amount
+    ) internal returns (uint256) {
         if (totalBuyFee == 0) return 0;
 
         uint256 totalFeeAmount = (amount * totalBuyFee) / FEE_DENOMINATOR;
-        uint256 feeDiscountAmount = buyFeeDiscountFor(sender, amount);
+        uint256 feeDiscountAmount = buyFeeDiscountFor(user, amount);
 
         totalFeeAmount -= feeDiscountAmount;
         if (totalFeeAmount == 0) return 0;
@@ -295,14 +296,15 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         return totalFeeAmount;
     }
 
-    function _takeSellFee(address sender, uint256 amount)
-        internal
-        returns (uint256)
-    {
+    function _takeSellFee(
+        address sender,
+        address user,
+        uint256 amount
+    ) internal returns (uint256) {
         if (totalSellFee == 0) return 0;
 
         uint256 totalFeeAmount = (amount * totalSellFee) / FEE_DENOMINATOR;
-        uint256 feeDiscountAmount = sellFeeDiscountFor(sender, amount);
+        uint256 feeDiscountAmount = sellFeeDiscountFor(user, amount);
 
         totalFeeAmount -= feeDiscountAmount;
         if (totalFeeAmount == 0) return 0;
@@ -412,10 +414,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         uint256 totalFeeAmount;
         if (takeFee) {
             if (isSell) {
-                totalFeeAmount = _takeSellFee(sender, amount);
+                totalFeeAmount = _takeSellFee(sender, sender, amount);
                 totalFeeAmount += _takeSniperSellFee(sender, amount);
             } else if (isBuy) {
-                totalFeeAmount = _takeBuyFee(sender, amount);
+                totalFeeAmount = _takeBuyFee(sender, recipient, amount);
                 totalFeeAmount += _takeSniperBuyFee(sender, amount);
             }
         }
