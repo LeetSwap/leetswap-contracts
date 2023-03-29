@@ -242,22 +242,22 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     /************************************************************************/
 
-    function buyFeeDiscountFor(address account, uint256 transferAmount)
+    function buyFeeDiscountFor(address account, uint256 totalFeeAmount)
         public
         view
         returns (uint256)
     {
         if (address(feeDiscountOracle) == address(0)) return 0;
-        return feeDiscountOracle.buyFeeDiscountFor(account, transferAmount);
+        return feeDiscountOracle.buyFeeDiscountFor(account, totalFeeAmount);
     }
 
-    function sellFeeDiscountFor(address account, uint256 transferAmount)
+    function sellFeeDiscountFor(address account, uint256 totalFeeAmount)
         public
         view
         returns (uint256)
     {
         if (address(feeDiscountOracle) == address(0)) return 0;
-        return feeDiscountOracle.sellFeeDiscountFor(account, transferAmount);
+        return feeDiscountOracle.sellFeeDiscountFor(account, totalFeeAmount);
     }
 
     function _takeBuyFee(
@@ -268,7 +268,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         if (totalBuyFee == 0) return 0;
 
         uint256 totalFeeAmount = (amount * totalBuyFee) / FEE_DENOMINATOR;
-        uint256 feeDiscountAmount = buyFeeDiscountFor(user, amount);
+        uint256 feeDiscountAmount = buyFeeDiscountFor(user, totalFeeAmount);
 
         totalFeeAmount -= feeDiscountAmount;
         if (totalFeeAmount == 0) return 0;
@@ -304,7 +304,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         if (totalSellFee == 0) return 0;
 
         uint256 totalFeeAmount = (amount * totalSellFee) / FEE_DENOMINATOR;
-        uint256 feeDiscountAmount = sellFeeDiscountFor(user, amount);
+        uint256 feeDiscountAmount = sellFeeDiscountFor(user, totalFeeAmount);
 
         totalFeeAmount -= feeDiscountAmount;
         if (totalFeeAmount == 0) return 0;
