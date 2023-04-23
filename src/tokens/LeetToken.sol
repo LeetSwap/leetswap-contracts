@@ -6,15 +6,13 @@ import "@leetswap/dex/v2/interfaces/ILeetSwapV2Router01.sol";
 import "@leetswap/dex/v2/interfaces/ILeetSwapV2Factory.sol";
 import "@leetswap/dex/v2/interfaces/ILeetSwapV2Pair.sol";
 import "@leetswap/tokens/interfaces/IFeeDiscountOracle.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     address public constant DEAD = 0x000000000000000000000000000000000000dEaD;
-    address public constant NOTE = 0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503;
     uint256 public constant FEE_DENOMINATOR = 1e4;
     uint256 public constant MAX_FEE = 1000;
-    ITurnstile public immutable turnstile;
 
     uint256 public burnBuyFee;
     uint256 public farmsBuyFee;
@@ -35,12 +33,14 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     bool public tradingEnabled;
     uint256 public tradingEnabledTimestamp = 0; // 0 means trading is not active
 
-    ILeetSwapV2Router01 swapFeesRouter;
-    IFeeDiscountOracle feeDiscountOracle;
+    ILeetSwapV2Router01 public swapFeesRouter;
+    IFeeDiscountOracle public feeDiscountOracle;
+    address public swapPairToken;
     bool public swappingFeesEnabled;
     bool public isSwappingFees;
     uint256 public swapFeesAtAmount;
     uint256 public maxSwapFeesAmount;
+    uint256 public maxWalletAmount;
 
     uint256 public sniperBuyBaseFee = 2000;
     uint256 public sniperBuyFeeDecayPeriod = 15 minutes;
@@ -54,6 +54,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     bool public pairAutoDetectionEnabled;
     bool public indirectSwapFeeEnabled;
+    bool public maxWalletEnabled;
 
     mapping(address => bool) public isExcludedFromFee;
     mapping(address => bool) public isLiquidityManager;
@@ -65,6 +66,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     mapping(address => bool) internal _isLeetPair;
     mapping(uint256 => mapping(address => bool))
         internal _isCachedAutodetectedLeetPair;
+    mapping(address => bool) internal _isExcludedFromMaxWallet;
 
     event BuyFeeUpdated(uint256 _fee, uint256 _previousFee);
     event SellFeeUpdated(uint256 _fee, uint256 _previousFee);
@@ -78,6 +80,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     error TradingNotEnabled();
     error TradingAlreadyEnabled();
     error SniperBotDetected();
+    error MaxWalletReached();
     error TimestampIsInThePast();
     error FeeTooHigh();
     error InvalidFeeRecipient();
@@ -85,16 +88,18 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     error TransferFailed();
     error ArrayLengthMismatch();
 
-    constructor(address _router) ERC20("Leet", "LEET") {
+    constructor(address _router, address _swapPairToken) ERC20("Leet", "LEET") {
         ILeetSwapV2Router01 router = ILeetSwapV2Router01(_router);
         ILeetSwapV2Factory factory = ILeetSwapV2Factory(router.factory());
-        turnstile = factory.turnstile();
-        uint256 csrTokenID = turnstile.getTokenId(address(factory));
-        turnstile.assign(csrTokenID);
+        swapPairToken = _swapPairToken;
 
         isExcludedFromFee[owner()] = true;
         isExcludedFromFee[address(this)] = true;
         isExcludedFromFee[DEAD] = true;
+
+        _isExcludedFromMaxWallet[owner()] = true;
+        _isExcludedFromMaxWallet[address(this)] = true;
+        _isExcludedFromMaxWallet[DEAD] = true;
 
         burnBuyFee = 0;
         farmsBuyFee = 75;
@@ -115,17 +120,20 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         isLiquidityManager[address(router)] = true;
         isWhitelistedFactory[address(factory)] = true;
 
-        address pair = factory.createPair(address(this), router.WETH());
-        address notePair = factory.createPair(address(this), NOTE);
+        address pair = factory.createPair(address(this), swapPairToken);
+        address feesVault = ILeetSwapV2Pair(pair).fees();
+        _isExcludedFromMaxWallet[feesVault] = true;
+        isExcludedFromFee[feesVault] = true;
         _isLeetPair[pair] = true;
-        _isLeetPair[notePair] = true;
-        pairAutoDetectionEnabled = true;
+        maxWalletEnabled = true;
+        // pairAutoDetectionEnabled = true;
 
         _mint(owner(), 1337000 * 10**decimals());
 
         swapFeesRouter = router;
-        swapFeesAtAmount = (totalSupply() * 5) / 1e5;
-        maxSwapFeesAmount = (totalSupply() * 1) / 1e4;
+        swapFeesAtAmount = (totalSupply() * 3) / 1e5;
+        maxSwapFeesAmount = (totalSupply() * 2) / 1e4;
+        maxWalletAmount = (totalSupply() * 1) / 1e3; // 1.337% of the CIRCULATING supply
     }
 
     modifier onlyLiquidityManager() {
@@ -381,6 +389,12 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
         if (isBot[sender] || isBot[recipient]) revert SniperBotDetected();
 
+        if (
+            maxWalletEnabled &&
+            !isExcludedFromMaxWallet(recipient) &&
+            balanceOf(recipient) + amount > maxWalletAmount
+        ) revert MaxWalletReached();
+
         bool takeFee = !isSwappingFees &&
             _shouldTakeTransferTax(sender, recipient);
         bool isBuy = isLeetPair(sender);
@@ -435,7 +449,7 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
         address[] memory path = new address[](2);
         path[0] = address(this);
-        path[1] = NOTE;
+        path[1] = swapPairToken;
 
         _approve(address(this), address(swapFeesRouter), amountToSwap);
         swapFeesRouter.swapExactTokensForTokens(
@@ -497,6 +511,28 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             uint256 amount = amounts[i];
             _transfer(msg.sender, wallet, amount);
         }
+    }
+
+    /************************************************************************/
+
+    function isExcludedFromMaxWallet(address account)
+        public
+        view
+        returns (bool)
+    {
+        return _isExcludedFromMaxWallet[account] || _isLeetPair[account];
+    }
+
+    function excludeFromMaxWallet(address account) external onlyOwner {
+        _isExcludedFromMaxWallet[account] = true;
+    }
+
+    function includeInMaxWallet(address account) external onlyOwner {
+        _isExcludedFromMaxWallet[account] = false;
+    }
+
+    function setMaxWalletEnabled(bool enabled) external onlyOwner {
+        maxWalletEnabled = enabled;
     }
 
     /************************************************************************/

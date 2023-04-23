@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-import "@leetswap/interfaces/ITurnstile.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Base V1 Fees contract is used as a 1:1 pair relationship to split out fees, this ensures that the curve does not need to be modified for LP shares
@@ -14,17 +13,10 @@ contract LeetSwapV2Fees {
     error TransferFailed();
     error Unauthorized();
 
-    constructor(
-        address _token0,
-        address _token1,
-        ITurnstile turnstile
-    ) {
+    constructor(address _token0, address _token1) {
         pair = msg.sender;
         token0 = _token0;
         token1 = _token1;
-
-        uint256 csrTokenID = turnstile.getTokenId(pair);
-        turnstile.assign(csrTokenID);
     }
 
     function _safeTransfer(

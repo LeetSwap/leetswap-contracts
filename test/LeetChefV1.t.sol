@@ -7,6 +7,8 @@ import "../script/DeployLeetChefV1.s.sol";
 
 import {DeployLeetToken, LeetToken} from "../script/DeployLeetToken.s.sol";
 import "../script/DeployDEXV2.s.sol";
+import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
+import {WETH} from "solmate/tokens/WETH.sol";
 
 contract TestLeetChefV1 is Test {
     uint256 mainnetFork;
@@ -21,28 +23,25 @@ contract TestLeetChefV1 is Test {
     LeetSwapV2Factory public factory;
     LeetSwapV2Router01 public router;
 
-    IBaseV1Factory public cantoDEXFactory;
-
     IWCANTO public weth;
-    IERC20 public note;
-
-    address noteAccountant = 0x4F6DCfa2F69AF7350AAc48D3a3d5B8D03b5378AA;
+    MockERC20 public pairToken;
 
     function setUp() public {
-        mainnetFork = vm.createSelectFork(
-            "https://canto.slingshot.finance",
-            3149555
-        );
+        // mainnetFork = vm.createSelectFork(
+        //     "https://canto.slingshot.finance",
+        //     3149555
+        // );
 
         dexDeployer = new DeployDEXV2();
-        (factory, router) = dexDeployer.run();
-        weth = IWCANTO(router.WETH());
-        note = IERC20(0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503);
+        weth = IWCANTO(address(new WETH()));
+        (factory, router) = dexDeployer.deploy(address(weth));
+        // weth = IWCANTO(router.WETH());
+        // pairToken = IERC20(0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503);
 
-        cantoDEXFactory = IBaseV1Factory(dexDeployer.cantoDEXFactory());
+        pairToken = new MockERC20("PairToken", "PT", 18);
 
         leetDeployer = new DeployLeetToken();
-        leet = leetDeployer.run(address(router));
+        leet = leetDeployer.run(address(router), address(pairToken));
 
         chefDeployer = new DeployLeetChefV1();
         chef = chefDeployer.run(leet);
@@ -52,14 +51,20 @@ contract TestLeetChefV1 is Test {
         vm.label(address(router), "router");
         vm.label(address(leet), "leet");
         vm.label(address(weth), "wcanto");
-        vm.label(address(note), "note");
-        vm.label(address(cantoDEXFactory), "cantoDEXFactory");
-        vm.label(noteAccountant, "note accountant");
+        vm.label(address(pairToken), "pairToken");
+
+        vm.prank(factory.owner());
+        factory.setProtocolFeesShare(0);
+
+        vm.prank(router.owner());
+        router.setDeadlineEnabled(true);
 
         vm.deal(address(this), 100 ether);
         weth.deposit{value: 10 ether}();
 
         vm.startPrank(leet.owner());
+        leet.setPairAutoDetectionEnabled(true);
+        leet.setMaxWalletEnabled(false);
         leet.transfer(address(chef), 337000 * 1e18);
         leet.enableTrading();
         vm.stopPrank();
@@ -91,22 +96,21 @@ contract TestLeetChefV1 is Test {
         vm.stopPrank();
     }
 
-    function addLiquidityWithNote(uint256 leetAmount)
+    function addLiquidityWithPairToken(uint256 leetAmount)
         public
         returns (uint256 liquidity)
     {
         address liquidityManager = leet.owner();
 
-        vm.prank(noteAccountant);
-        note.transfer(liquidityManager, 10 ether);
+        pairToken.mint(liquidityManager, 10 ether);
 
         vm.startPrank(liquidityManager);
 
         leet.approve(address(router), leetAmount);
-        note.approve(address(router), 10 ether);
+        pairToken.approve(address(router), 10 ether);
         (, , liquidity) = router.addLiquidity(
             address(leet),
-            address(note),
+            address(pairToken),
             leetAmount,
             10 ether,
             0,
@@ -132,18 +136,22 @@ contract TestLeetChefV1 is Test {
         }(amountOutAfterTax, path, address(this), block.timestamp);
     }
 
-    function buyLeetWithNote(uint256 noteAmount) public {
+    function buyLeetWithPairToken(uint256 pairTokenAmount) public {
         address[] memory path = new address[](2);
-        path[0] = address(note);
+        path[0] = address(pairToken);
         path[1] = address(leet);
 
-        uint256 amountOut = router.getAmountOut(noteAmount, path[0], path[1]);
+        uint256 amountOut = router.getAmountOut(
+            pairTokenAmount,
+            path[0],
+            path[1]
+        );
         uint256 tax = (amountOut * leet.totalBuyFee()) / leet.FEE_DENOMINATOR();
         uint256 amountOutAfterTax = amountOut - tax;
 
-        note.approve(address(router), noteAmount);
+        pairToken.approve(address(router), pairTokenAmount);
         router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            noteAmount,
+            pairTokenAmount,
             amountOutAfterTax,
             path,
             address(this),
@@ -192,9 +200,11 @@ contract TestLeetChefV1 is Test {
         assertApproxEqAbs(leet.balanceOf(address(this)), pendingReward * 2, 9);
     }
 
-    function testClaimPendingLeetWithNote() public {
-        uint256 liquidity = addLiquidityWithNote(800e3);
-        IERC20 lpToken = IERC20(router.pairFor(address(leet), address(note)));
+    function testClaimPendingLeetWithPairToken() public {
+        uint256 liquidity = addLiquidityWithPairToken(800e3);
+        IERC20 lpToken = IERC20(
+            router.pairFor(address(leet), address(pairToken))
+        );
         uint256 emissionsPerSecond = 0.01 ether;
         uint256 allocPoints = 1;
 
@@ -233,45 +243,50 @@ contract TestLeetChefV1 is Test {
         assertApproxEqAbs(leet.balanceOf(address(this)), pendingReward * 2, 9);
     }
 
-    function testClaimPendingLeetWithCantoAndNote() public {
+    function testClaimPendingLeetWithCantoAndPairToken() public {
         uint256 liquidityCanto = addLiquidityWithCanto(400e3);
-        uint256 liquidityNote = addLiquidityWithNote(400e3);
+        uint256 liquidityPairToken = addLiquidityWithPairToken(400e3);
         IERC20 lpTokenCanto = IERC20(
             router.pairFor(address(leet), address(weth))
         );
-        IERC20 lpTokenNote = IERC20(
-            router.pairFor(address(leet), address(note))
+        IERC20 lpTokenPairToken = IERC20(
+            router.pairFor(address(leet), address(pairToken))
         );
         uint256 emissionsPerSecond = 0.01 ether;
         uint256 allocPointsCantoPool = 4;
-        uint256 allocPointsNotePool = 6;
-        uint256 totalAllocPoints = allocPointsCantoPool + allocPointsNotePool;
+        uint256 allocPointsPairTokenPool = 6;
+        uint256 totalAllocPoints = allocPointsCantoPool +
+            allocPointsPairTokenPool;
 
         vm.startPrank(chef.owner());
         chef.add(allocPointsCantoPool, lpTokenCanto, IRewarder(address(0)));
-        chef.add(allocPointsNotePool, lpTokenNote, IRewarder(address(0)));
+        chef.add(
+            allocPointsPairTokenPool,
+            lpTokenPairToken,
+            IRewarder(address(0))
+        );
         chef.setPrimaryTokenPerSecond(emissionsPerSecond, true);
         vm.stopPrank();
 
         vm.startPrank(leet.owner());
         lpTokenCanto.transfer(address(this), liquidityCanto);
-        lpTokenNote.transfer(address(this), liquidityNote);
+        lpTokenPairToken.transfer(address(this), liquidityPairToken);
         vm.stopPrank();
 
         lpTokenCanto.approve(address(chef), liquidityCanto);
-        lpTokenNote.approve(address(chef), liquidityNote);
+        lpTokenPairToken.approve(address(chef), liquidityPairToken);
         chef.deposit(0, liquidityCanto, address(this));
-        chef.deposit(1, liquidityNote, address(this));
+        chef.deposit(1, liquidityPairToken, address(this));
         assertEq(lpTokenCanto.balanceOf(address(chef)), liquidityCanto);
-        assertEq(lpTokenNote.balanceOf(address(chef)), liquidityNote);
+        assertEq(lpTokenPairToken.balanceOf(address(chef)), liquidityPairToken);
 
         uint256 elapsed = 666 seconds;
         uint256 pendingRewardCantoPool = (emissionsPerSecond *
             elapsed *
             allocPointsCantoPool) / totalAllocPoints;
-        uint256 pendingRewardNotePool = (emissionsPerSecond *
+        uint256 pendingRewardPairTokenPool = (emissionsPerSecond *
             elapsed *
-            allocPointsNotePool) / totalAllocPoints;
+            allocPointsPairTokenPool) / totalAllocPoints;
         uint256 totalPendingReward = emissionsPerSecond * elapsed;
         vm.warp(block.timestamp + elapsed);
         assertApproxEqAbs(
@@ -281,7 +296,7 @@ contract TestLeetChefV1 is Test {
         );
         assertApproxEqAbs(
             chef.pendingPrimaryToken(1, address(this)),
-            pendingRewardNotePool,
+            pendingRewardPairTokenPool,
             9
         );
 
@@ -297,12 +312,12 @@ contract TestLeetChefV1 is Test {
         );
         assertApproxEqAbs(
             chef.pendingPrimaryToken(1, address(this)),
-            pendingRewardNotePool,
+            pendingRewardPairTokenPool,
             9
         );
 
         chef.withdrawAndHarvest(0, liquidityCanto, address(this));
-        chef.withdrawAndHarvest(1, liquidityNote, address(this));
+        chef.withdrawAndHarvest(1, liquidityPairToken, address(this));
         assertApproxEqAbs(
             leet.balanceOf(address(this)),
             totalPendingReward * 2,
@@ -311,8 +326,10 @@ contract TestLeetChefV1 is Test {
     }
 
     function testClaimFees() public {
-        uint256 liquidity = addLiquidityWithNote(800e3);
-        IERC20 lpToken = IERC20(router.pairFor(address(leet), address(note)));
+        uint256 liquidity = addLiquidityWithPairToken(800e3);
+        IERC20 lpToken = IERC20(
+            router.pairFor(address(leet), address(pairToken))
+        );
         uint256 emissionsPerSecond = 0.01 ether;
         uint256 allocPoints = 1;
 
@@ -333,23 +350,24 @@ contract TestLeetChefV1 is Test {
             address(lpToken),
             address(this)
         );
-        uint256 noteFeesAccrued = (buyAmount * tradingFees * liquidity) /
+        uint256 pairTokenFeesAccrued = (buyAmount * tradingFees * liquidity) /
             1e4 /
             lpToken.totalSupply();
         assertEq(tradingFees, 30);
 
-        vm.prank(noteAccountant);
-        note.transfer(address(this), buyAmount);
-        buyLeetWithNote(buyAmount);
+        pairToken.mint(address(this), buyAmount);
+        buyLeetWithPairToken(buyAmount);
 
         vm.prank(chef.owner());
         chef.claimLPFees(0);
-        assertEq(note.balanceOf(chef.owner()), noteFeesAccrued);
+        assertEq(pairToken.balanceOf(chef.owner()), pairTokenFeesAccrued);
     }
 
     function testClaimFeesWithExistingBalance() public {
-        uint256 liquidity = addLiquidityWithNote(800e3);
-        IERC20 lpToken = IERC20(router.pairFor(address(leet), address(note)));
+        uint256 liquidity = addLiquidityWithPairToken(800e3);
+        IERC20 lpToken = IERC20(
+            router.pairFor(address(leet), address(pairToken))
+        );
         uint256 emissionsPerSecond = 0.01 ether;
         uint256 allocPoints = 1;
 
@@ -371,20 +389,19 @@ contract TestLeetChefV1 is Test {
             address(lpToken),
             address(this)
         );
-        uint256 noteFeesAccrued = (buyAmount * tradingFees * liquidity) /
+        uint256 pairTokenFeesAccrued = (buyAmount * tradingFees * liquidity) /
             1e4 /
             lpToken.totalSupply();
         assertEq(tradingFees, 30);
 
-        vm.prank(noteAccountant);
-        note.transfer(address(this), buyAmount + existingChefBalance);
-        note.transfer(address(chef), existingChefBalance);
-        buyLeetWithNote(buyAmount);
+        pairToken.mint(address(this), buyAmount + existingChefBalance);
+        pairToken.mint(address(chef), existingChefBalance);
+        buyLeetWithPairToken(buyAmount);
 
         vm.prank(chef.owner());
         chef.claimLPFees(0);
-        assertEq(note.balanceOf(chef.owner()), noteFeesAccrued);
-        assertEq(note.balanceOf(address(chef)), existingChefBalance);
+        assertEq(pairToken.balanceOf(chef.owner()), pairTokenFeesAccrued);
+        assertEq(pairToken.balanceOf(address(chef)), existingChefBalance);
     }
 
     receive() external payable {}

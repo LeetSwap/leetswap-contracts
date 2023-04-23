@@ -64,6 +64,7 @@ run-forge-script name func="run()" *args="":
     --sig "{{func}}" \
     --slow \
     --broadcast \
+    --legacy \
     -vvvv {{args}}
 
 deploy-dex-v2:
@@ -76,10 +77,10 @@ deploy-leet-token router:
 
     just run-forge-script DeployLeetToken "run(address)" {{router}}
 
-launch-leet-token router noteLiquidityAmount launchTimestamp:
+launch-leet-token router pairToken noteLiquidityAmount launchTimestamp:
     #!/bin/sh
 
-    just run-forge-script DeployLeetToken "deployAndLaunch(address,uint256,uint256)" {{router}} {{noteLiquidityAmount}} {{launchTimestamp}}
+    just run-forge-script DeployLeetToken "deployAndLaunch(address,address,uint256,uint256)" {{router}} {{pairToken}} {{noteLiquidityAmount}} {{launchTimestamp}}
 
 leet-token-add-pair leet pair:
     #!/bin/sh
@@ -110,8 +111,3 @@ leetbar-enter leetbar amount:
     #!/bin/sh
 
     just run-forge-script ManageLeetBar "enter(address,uint256)" {{leetbar}} {{amount}}
-
-turnstile-withdraw turnstile-address token-id:
-    #!/bin/sh
-
-    just run-forge-script ManageTurnstile "withdraw(address,uint256)" {{turnstile-address}} {{token-id}}

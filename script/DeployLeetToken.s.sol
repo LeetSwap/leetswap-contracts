@@ -3,7 +3,8 @@ pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
 
-import {LeetToken, ILeetSwapV2Router01} from "@leetswap/tokens/LeetToken.sol";
+import {LeetToken} from "@leetswap/tokens/LeetToken.sol";
+import {LeetSwapV2Router01} from "@leetswap/dex/v2/LeetSwapV2Router01.sol";
 import {LeetChefV1, IRewarder} from "@leetswap/farms/LeetChefV1.sol";
 import {LeetBar} from "@leetswap/staking/LeetBar.sol";
 import {VestingWallet} from "@openzeppelin/contracts/finance/VestingWallet.sol";
@@ -13,16 +14,11 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 contract DeployLeetToken is Test {
     using Strings for uint256;
 
-    IERC20Metadata public wcanto =
-        IERC20Metadata(0x826551890Dc65655a0Aceca109aB11AbDbD7a07B);
-    IERC20Metadata public note =
-        IERC20Metadata(0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503);
-
     uint256 public constant TOTAL_SUPPLY = 1337000 ether;
     uint256 public constant TEAM_SHARE = 500;
     uint256 public constant MARKETING_SHARE = 500;
-    uint256 public constant LIQUIDITY_SHARE = 3000;
-    uint256 public constant REWARDS_SHARE = 6000;
+    uint256 public constant LIQUIDITY_SHARE = 1000;
+    uint256 public constant REWARDS_SHARE = 8000;
     uint256 public constant TOTAL_SHARE =
         TEAM_SHARE + MARKETING_SHARE + LIQUIDITY_SHARE + REWARDS_SHARE;
 
@@ -47,18 +43,27 @@ contract DeployLeetToken is Test {
         assertEq(TOTAL_SHARE, 1e4);
     }
 
-    function run(address router) external returns (LeetToken leet) {
-        leet = deploy(router);
+    function run(address router, address swapPairToken)
+        external
+        returns (LeetToken leet)
+    {
+        leet = deploy(router, swapPairToken);
     }
 
-    function deploy(address router) public returns (LeetToken leet) {
+    function deploy(address router, address swapPairToken)
+        public
+        returns (LeetToken leet)
+    {
+        require(swapPairToken != address(0), "Swap pair token cannot be zero");
+
         vm.broadcast();
-        return new LeetToken(router);
+        return new LeetToken(router, swapPairToken);
     }
 
     function deployAndLaunch(
-        ILeetSwapV2Router01 router,
-        uint256 noteLiquidityAmount,
+        LeetSwapV2Router01 router,
+        IERC20Metadata pairToken,
+        uint256 pairTokenLiquidityAmount,
         uint256 launchTimestamp
     )
         external
@@ -71,16 +76,17 @@ contract DeployLeetToken is Test {
         assertGt(launchTimestamp, block.timestamp);
 
         console.log("Trading will be enabled at:", launchTimestamp);
+        console.log("PAIRTOKEN:", address(pairToken));
         console.log(
-            "Initial liquidity NOTE:",
-            noteLiquidityAmount / 10**note.decimals()
+            "Initial liquidity PAIRTOKEN:",
+            pairTokenLiquidityAmount / 10**pairToken.decimals()
         );
 
-        vm.startBroadcast();
+        leet = deploy(address(router), address(pairToken));
 
-        leet = new LeetToken(address(router));
+        vm.startBroadcast();
         address sender = leet.owner();
-        assertGe(note.balanceOf(sender), noteLiquidityAmount);
+        assertGe(pairToken.balanceOf(sender), pairTokenLiquidityAmount);
         console.log("Leet token deployed at:", address(leet));
 
         leet.setTradingEnabledTimestamp(launchTimestamp);
@@ -93,15 +99,17 @@ contract DeployLeetToken is Test {
         );
 
         IERC20Metadata lpToken = IERC20Metadata(
-            router.pairFor(address(leet), address(note))
+            router.pairFor(address(leet), address(pairToken))
         );
         assertEq(lpToken.totalSupply(), 0);
+        router.addLiquidityManageableWhitelist(address(leet));
 
         VestingWallet teamWallet = new VestingWallet(
             sender, // beneficiary
             uint64(launchTimestamp + TEAM_CLIFF), // start
             TEAM_VESTING // duration
         );
+        leet.excludeFromMaxWallet(address(teamWallet));
         leet.transfer(address(teamWallet), TEAM_SUPPLY);
 
         VestingWallet marketingWallet = new VestingWallet(
@@ -109,16 +117,17 @@ contract DeployLeetToken is Test {
             uint64(launchTimestamp), // start
             MARKETING_VESTING // duration
         );
+        leet.excludeFromMaxWallet(address(marketingWallet));
         leet.transfer(address(marketingWallet), MARKETING_SUPPLY);
 
         leet.approve(address(router), type(uint256).max);
-        note.approve(address(router), type(uint256).max);
+        pairToken.approve(address(router), type(uint256).max);
         uint256 initialLiquidityAmount = (LIQUIDITY_SUPPLY * 75) / 100;
         (, , uint256 liquidity) = router.addLiquidity(
             address(leet),
-            address(note),
+            address(pairToken),
             initialLiquidityAmount,
-            noteLiquidityAmount,
+            pairTokenLiquidityAmount,
             0,
             0,
             sender,
@@ -133,6 +142,9 @@ contract DeployLeetToken is Test {
 
         bar = new LeetBar(leet);
         console.log("LeetBar deployed at:", address(bar));
+
+        leet.excludeFromMaxWallet(address(chef));
+        leet.excludeFromMaxWallet(address(bar));
 
         uint256 barAmount = 1337 * 10**leet.decimals();
         leet.approve(address(bar), type(uint256).max);

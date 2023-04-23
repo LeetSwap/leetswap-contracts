@@ -5,8 +5,6 @@ import "./interfaces/ILeetSwapV2Factory.sol";
 import "./interfaces/ILeetSwapV2Pair.sol";
 import "./interfaces/ILeetSwapV2Router01.sol";
 import "@leetswap/interfaces/ILiquidityManageable.sol";
-import "@leetswap/dex/native/interfaces/IBaseV1Factory.sol";
-import "@leetswap/dex/native/interfaces/IBaseV1Pair.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -19,12 +17,14 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
 
     address public immutable factory;
     IWCANTO public immutable wcanto;
-    IBaseV1Factory public immutable cantoDEXFactory;
 
     uint256 internal constant MINIMUM_LIQUIDITY = 10**3;
     bytes32 immutable pairCodeHash;
     mapping(address => bool) public stablePairs;
-    mapping(address => mapping(address => bool)) public useCantoDEXForTokens;
+    mapping(address => bool) public isLiquidityManageableWhitelisted;
+    bool public deadlineEnabled;
+    bool public liquidityManageableEnabled;
+    bool public liquidityManageableWhitelistEnabled;
 
     error InvalidToken();
     error TransferFailed();
@@ -32,7 +32,6 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
     error InsufficientOutputAmount();
     error InvalidPath();
     error InvalidAmount();
-    error PairNotFound();
     error CantoTransferFailed();
     error IdenticalAddresses();
     error InsufficientAmount();
@@ -45,23 +44,17 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
     error Unauthorized();
 
     modifier ensure(uint256 deadline) {
-        if (deadline < block.timestamp) revert DeadlineExpired();
+        if (deadlineEnabled && deadline < block.timestamp)
+            revert DeadlineExpired();
         _;
     }
 
-    constructor(
-        address _factory,
-        address _wcanto,
-        address _cantoDEXFactory
-    ) {
+    constructor(address _factory, address _wcanto) {
         factory = _factory;
-        cantoDEXFactory = IBaseV1Factory(_cantoDEXFactory);
         pairCodeHash = ILeetSwapV2Factory(_factory).pairCodeHash();
         wcanto = IWCANTO(_wcanto);
-
-        ITurnstile turnstile = ILeetSwapV2Factory(factory).turnstile();
-        uint256 csrTokenID = turnstile.getTokenId(factory);
-        turnstile.assign(csrTokenID);
+        liquidityManageableEnabled = true;
+        liquidityManageableWhitelistEnabled = true;
     }
 
     receive() external payable {
@@ -78,39 +71,65 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
     function _startLiquidityManagement(address tokenA, address tokenB)
         internal
     {
-        ILiquidityManageable lmTokenA = ILiquidityManageable(tokenA);
-        ILiquidityManageable lmTokenB = ILiquidityManageable(tokenB);
+        if (!liquidityManageableEnabled) return;
 
-        try lmTokenA.isLiquidityManager(address(this)) returns (
-            bool isLiquidityManager
+        if (
+            !liquidityManageableWhitelistEnabled ||
+            isLiquidityManageableWhitelisted[tokenA]
         ) {
-            if (isLiquidityManager) lmTokenA.setLiquidityManagementPhase(true);
-        } catch {}
+            ILiquidityManageable lmTokenA = ILiquidityManageable(tokenA);
+            try lmTokenA.isLiquidityManager(address(this)) returns (
+                bool isLiquidityManager
+            ) {
+                if (isLiquidityManager)
+                    lmTokenA.setLiquidityManagementPhase(true);
+            } catch {}
+        }
 
-        try lmTokenB.isLiquidityManager(address(this)) returns (
-            bool isLiquidityManager
+        if (
+            !liquidityManageableWhitelistEnabled ||
+            isLiquidityManageableWhitelisted[tokenB]
         ) {
-            if (isLiquidityManager) lmTokenB.setLiquidityManagementPhase(true);
-        } catch {}
+            ILiquidityManageable lmTokenB = ILiquidityManageable(tokenB);
+            try lmTokenB.isLiquidityManager(address(this)) returns (
+                bool isLiquidityManager
+            ) {
+                if (isLiquidityManager)
+                    lmTokenB.setLiquidityManagementPhase(true);
+            } catch {}
+        }
     }
 
     // if the previous 'startPhase' call failed because the router is not a LM, nothing will happen here,
     // still silently fail, whereas if it succeeded, the liquidity management phase will be set to false
     function _stopLiquidityManagement(address tokenA, address tokenB) internal {
-        ILiquidityManageable lmTokenA = ILiquidityManageable(tokenA);
-        ILiquidityManageable lmTokenB = ILiquidityManageable(tokenB);
+        if (!liquidityManageableEnabled) return;
 
-        try lmTokenA.isLiquidityManager(address(this)) returns (
-            bool isLiquidityManager
+        if (
+            !liquidityManageableWhitelistEnabled ||
+            isLiquidityManageableWhitelisted[tokenA]
         ) {
-            if (isLiquidityManager) lmTokenA.setLiquidityManagementPhase(false);
-        } catch {}
+            ILiquidityManageable lmTokenA = ILiquidityManageable(tokenA);
+            try lmTokenA.isLiquidityManager(address(this)) returns (
+                bool isLiquidityManager
+            ) {
+                if (isLiquidityManager)
+                    lmTokenA.setLiquidityManagementPhase(false);
+            } catch {}
+        }
 
-        try lmTokenB.isLiquidityManager(address(this)) returns (
-            bool isLiquidityManager
+        if (
+            !liquidityManageableWhitelistEnabled ||
+            isLiquidityManageableWhitelisted[tokenB]
         ) {
-            if (isLiquidityManager) lmTokenB.setLiquidityManagementPhase(false);
-        } catch {}
+            ILiquidityManageable lmTokenB = ILiquidityManageable(tokenB);
+            try lmTokenB.isLiquidityManager(address(this)) returns (
+                bool isLiquidityManager
+            ) {
+                if (isLiquidityManager)
+                    lmTokenB.setLiquidityManagementPhase(false);
+            } catch {}
+        }
     }
 
     // UniswapV2 compatibility
@@ -130,12 +149,11 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
         if (token0 == address(0)) revert ZeroAddress();
     }
 
-    // calculates the CREATE2 address for a pair without making any external calls
-    function pairForLeetSwapV2(
+    function _pairFor(
         address tokenA,
         address tokenB,
         bool stable
-    ) public view returns (address pair) {
+    ) internal view returns (address pair) {
         (address token0, address token1) = sortTokens(tokenA, tokenB);
         pair = address(
             uint160(
@@ -153,39 +171,30 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
         );
     }
 
+    // calculates the CREATE2 address for a pair without making any external calls
     function pairFor(address tokenA, address tokenB)
         public
         view
         returns (address pair)
     {
-        bool isStable;
         (address token0, address token1) = sortTokens(tokenA, tokenB);
-        if (useCantoDEXForTokens[token0][token1]) {
-            isStable = stablePairs[
-                cantoDEXFactory.getPair(token0, token1, true)
-            ];
-            pair = cantoDEXFactory.getPair(token0, token1, isStable);
-        } else {
-            isStable = stablePairs[pairForLeetSwapV2(token0, token1, true)];
-            pair = pairForLeetSwapV2(token0, token1, isStable);
-        }
-    }
-
-    function pairInfo(address tokenA, address tokenB)
-        public
-        view
-        returns (address pair, bool isStable)
-    {
-        (address token0, address token1) = sortTokens(tokenA, tokenB);
-        if (useCantoDEXForTokens[token0][token1]) {
-            isStable = stablePairs[
-                cantoDEXFactory.getPair(token0, token1, true)
-            ];
-            pair = cantoDEXFactory.getPair(token0, token1, isStable);
-        } else {
-            isStable = stablePairs[pairForLeetSwapV2(token0, token1, true)];
-            pair = pairForLeetSwapV2(token0, token1, isStable);
-        }
+        bool isStable = stablePairs[_pairFor(token0, token1, true)];
+        pair = address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            hex"ff",
+                            factory,
+                            keccak256(
+                                abi.encodePacked(token0, token1, isStable)
+                            ),
+                            pairCodeHash // init code hash
+                        )
+                    )
+                )
+            )
+        );
     }
 
     // fetches and sorts the reserves for a pair
@@ -212,10 +221,6 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
         address pair = pairFor(tokenIn, tokenOut);
         if (ILeetSwapV2Factory(factory).isPair(pair)) {
             amount = ILeetSwapV2Pair(pair).getAmountOut(amountIn, tokenIn);
-        } else if (cantoDEXFactory.isPair(pair)) {
-            amount = IBaseV1Pair(pair).getAmountOut(amountIn, tokenIn);
-        } else {
-            revert PairNotFound();
         }
     }
 
@@ -235,13 +240,6 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
                     amounts[i],
                     routes[i].from
                 );
-            } else if (cantoDEXFactory.isPair(pair)) {
-                amounts[i + 1] = IBaseV1Pair(pair).getAmountOut(
-                    amounts[i],
-                    routes[i].from
-                );
-            } else {
-                revert PairNotFound();
             }
         }
     }
@@ -279,7 +277,7 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
     {
         routes = new Route[](path.length - 1);
         for (uint256 i = 0; i < path.length - 1; i++) {
-            (, bool isStable) = pairInfo(path[i], path[i + 1]);
+            bool isStable = stablePairs[pairFor(path[i], path[i + 1])];
             routes[i] = Route(path[i], path[i + 1], isStable);
         }
     }
@@ -741,28 +739,29 @@ contract LeetSwapV2Router01 is Ownable, ILeetSwapV2Router01 {
         }
     }
 
-    function setCantoDEXForTokens(
-        address tokenA,
-        address tokenB,
-        bool useCantoDEX
-    ) external onlyOwner {
-        useCantoDEXForTokens[tokenA][tokenB] = useCantoDEX;
-        useCantoDEXForTokens[tokenB][tokenA] = useCantoDEX;
+    function setDeadlineEnabled(bool _enabled) external onlyOwner {
+        deadlineEnabled = _enabled;
     }
 
-    function setCantoDEXForTokens(
-        address[] calldata tokenA,
-        address[] calldata tokenB,
-        bool[] calldata useCantoDEX
-    ) external onlyOwner {
-        if (
-            tokenA.length != tokenB.length ||
-            tokenA.length != useCantoDEX.length ||
-            tokenB.length != useCantoDEX.length
-        ) revert ArrayLengthMismatch();
-        for (uint256 i = 0; i < tokenA.length; i++) {
-            useCantoDEXForTokens[tokenA[i]][tokenB[i]] = useCantoDEX[i];
-            useCantoDEXForTokens[tokenB[i]][tokenA[i]] = useCantoDEX[i];
-        }
+    function setLiquidityManageableEnabled(bool _enabled) external onlyOwner {
+        liquidityManageableEnabled = _enabled;
+    }
+
+    function setLiquidityManageableWhitelistEnabled(bool _enabled)
+        external
+        onlyOwner
+    {
+        liquidityManageableWhitelistEnabled = _enabled;
+    }
+
+    function addLiquidityManageableWhitelist(address token) external onlyOwner {
+        isLiquidityManageableWhitelisted[token] = true;
+    }
+
+    function removeLiquidityManageableWhitelist(address token)
+        external
+        onlyOwner
+    {
+        isLiquidityManageableWhitelisted[token] = false;
     }
 }

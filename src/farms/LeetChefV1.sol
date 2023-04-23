@@ -4,7 +4,6 @@ pragma experimental ABIEncoderV2;
 
 import {IRewarder} from "./interfaces/IRewarder.sol";
 import {ILeetSwapV2Pair} from "@leetswap/dex/v2/interfaces/ILeetSwapV2Pair.sol";
-import {ITurnstile} from "@leetswap/interfaces/ITurnstile.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -15,10 +14,6 @@ interface IMigratorChef {
     // Take the current LP token address and return the new LP token address.
     // Migrator should have full access to the caller's LP token.
     function migrate(IERC20 token) external returns (IERC20);
-}
-
-interface ICSRContract {
-    function turnstile() external view returns (ITurnstile);
 }
 
 contract LeetChefV1 is Ownable {
@@ -115,10 +110,6 @@ contract LeetChefV1 is Ownable {
     /// @param _primaryToken The PRIMARY_TOKEN token contract address.
     constructor(IERC20 _primaryToken) {
         PRIMARY_TOKEN = _primaryToken;
-
-        ITurnstile turnstile = ICSRContract(address(_primaryToken)).turnstile();
-        uint256 csrTokenID = turnstile.getTokenId(address(_primaryToken));
-        turnstile.assign(csrTokenID);
     }
 
     /// @notice Returns the number of LeetChefV1 pools.

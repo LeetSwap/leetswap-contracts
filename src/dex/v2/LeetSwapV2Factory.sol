@@ -9,7 +9,6 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
     bool public isPaused;
     address public pauser;
     address public pendingPauser;
-    ITurnstile public turnstile;
     ITradingFeesOracle public tradingFeesOracle;
     uint256 public protocolFeesShare;
     address public protocolFeesRecipient;
@@ -38,14 +37,12 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
     error ZeroAddress();
     error Unauthorized();
 
-    constructor(ITurnstile _turnstile) {
+    constructor() {
         pauser = msg.sender;
         isPaused = false;
-        turnstile = _turnstile;
-        turnstile.register(msg.sender);
         protocolFeesRecipient = msg.sender;
         _tradingFees = 30;
-        protocolFeesShare = 0;
+        protocolFeesShare = 5000;
     }
 
     function allPairsLength() external view returns (uint256) {
@@ -169,9 +166,5 @@ contract LeetSwapV2Factory is ILeetSwapV2Factory, Ownable {
         protocolFeesShare = _protocolFeesShare > 5000
             ? 5000
             : _protocolFeesShare; // max 50%
-    }
-
-    function setTurnstile(address _turnstile) external onlyOwner {
-        turnstile = ITurnstile(_turnstile);
     }
 }

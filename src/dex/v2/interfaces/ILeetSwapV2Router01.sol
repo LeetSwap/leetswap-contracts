@@ -62,6 +62,15 @@ interface ILeetSwapV2Router01 {
         uint256 deadline
     ) external returns (uint256 amountToken, uint256 amountETH);
 
+    function removeLiquidityETHSupportingFeeOnTransferTokens(
+        address token,
+        uint256 liquidity,
+        uint256 amountTokenMin,
+        uint256 amountCANTOMin,
+        address to,
+        uint256 deadline
+    ) external returns (uint256 amountCANTO);
+
     function swapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,
@@ -84,6 +93,29 @@ interface ILeetSwapV2Router01 {
         address to,
         uint256 deadline
     ) external returns (uint256[] memory amounts);
+
+    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external;
+
+    function swapExactETHForTokensSupportingFeeOnTransferTokens(
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external payable;
+
+    function swapExactTokensForETHSupportingFeeOnTransferTokens(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external;
 
     function getAmountOut(
         uint256 amountIn,

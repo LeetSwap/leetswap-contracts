@@ -117,11 +117,7 @@ contract LeetSwapV2Pair is ILeetSwapV2Pair {
         ).getInitializable();
         (token0, token1, stable) = (_token0, _token1, _stable);
 
-        ITurnstile turnstile = ILeetSwapV2Factory(factory).turnstile();
-        uint256 csrTokenID = turnstile.getTokenId(factory);
-        turnstile.assign(csrTokenID);
-
-        fees = address(new LeetSwapV2Fees(_token0, _token1, turnstile));
+        fees = address(new LeetSwapV2Fees(_token0, _token1));
 
         observations.push(Observation(block.timestamp, 0, 0));
     }

@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.0;
 
-import "@leetswap/interfaces/ITurnstile.sol";
-
 interface ILeetSwapV2Factory {
-    function turnstile() external view returns (ITurnstile);
-
     function allPairsLength() external view returns (uint256);
 
     function isPair(address pair) external view returns (bool);

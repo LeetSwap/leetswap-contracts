@@ -8,9 +8,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 contract DeployLeetBar is Test {
     using Strings for uint256;
 
-    address public wcanto = 0x826551890Dc65655a0Aceca109aB11AbDbD7a07B;
-    ITurnstile public turnstile =
-        ITurnstile(0xEcf044C5B4b867CFda001101c617eCd347095B44);
+    address public wcanto = 0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9;
 
     function setUp() public view {
         console.log(
