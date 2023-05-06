@@ -535,6 +535,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         maxWalletEnabled = enabled;
     }
 
+    function setMaxWalletAmount(uint256 amount) external onlyOwner {
+        maxWalletAmount = amount;
+    }
+
     /************************************************************************/
 
     function addLeetPair(address _pair) external onlyOwner {
