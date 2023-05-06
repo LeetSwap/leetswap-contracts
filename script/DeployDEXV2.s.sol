@@ -10,8 +10,8 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 contract DeployDEXV2 is Test {
     using Strings for uint256;
 
-    address public wcanto = 0x826551890Dc65655a0Aceca109aB11AbDbD7a07B;
-    address public cantoDEXFactory = 0xE387067f12561e579C5f7d4294f51867E0c1cFba;
+    address public wcanto = 0x04a72466De69109889Db059Cb1A4460Ca0648d9D;
+    address public cantoDEXFactory = 0x760a17e00173339907505B38F95755d28810570C;
     ITurnstile public turnstile =
         ITurnstile(0xEcf044C5B4b867CFda001101c617eCd347095B44);
 
@@ -35,20 +35,15 @@ contract DeployDEXV2 is Test {
             cantoDEXFactory
         );
 
-        router.setStablePair(0x35DB1f3a6A6F07f82C76fCC415dB6cFB1a7df833, true); // NOTE/USDT
-        router.setStablePair(0x9571997a66D63958e1B3De9647C22bD6b9e7228c, true); // NOTE/USDC
-        router.setStablePair(0x3CE59FaB4b43B2709343Ba29c768E222e080e2a4, true); // USDT/USDC
+        router.setStablePair(0x252631e22e1ECc2fc0E811562605ed624B7E31d5, true); // NOTE/USDT
+        router.setStablePair(0x2db30A39Ec88247da8906506DB8E9dd933A5C775, true); // NOTE/USDC
 
-        address note = 0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503;
-        address usdc = 0x80b5a32E4F032B2a058b4F29EC95EEfEEB87aDcd;
-        address eth = 0x5FD55A1B9FC24967C4dB09C513C3BA0DFa7FF687;
-        address atom = 0xecEEEfCEE421D8062EF8d6b4D814efe4dc898265;
-        address usdt = 0xd567B3d7B8FE3C79a1AD8dA978812cfC4Fa05e75;
-        address bank = 0x6f6BAe4110eCC33fE4E330b16b8df2A5E9807658;
-        address topg = 0xe350b49e52c9d865735BFD77c956f64585Be7583;
+        address note = 0x03F734Bd9847575fDbE9bEaDDf9C166F880B5E5f;
+        address usdc = 0xc51534568489f47949A828C8e3BF68463bdF3566;
+        address eth = 0xCa03230E7FB13456326a234443aAd111AC96410A;
+        address atom = 0x40E41DC5845619E7Ba73957449b31DFbfB9678b2;
+        address usdt = 0x4fC30060226c45D8948718C95a78dFB237e88b40;
 
-        router.setCantoDEXForTokens(bank, wcanto, true);
-        router.setCantoDEXForTokens(topg, wcanto, true);
         router.setCantoDEXForTokens(note, usdc, true);
         router.setCantoDEXForTokens(note, usdt, true);
         router.setCantoDEXForTokens(wcanto, note, true);

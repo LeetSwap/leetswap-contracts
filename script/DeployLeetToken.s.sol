@@ -14,9 +14,9 @@ contract DeployLeetToken is Test {
     using Strings for uint256;
 
     IERC20Metadata public wcanto =
-        IERC20Metadata(0x826551890Dc65655a0Aceca109aB11AbDbD7a07B);
+        IERC20Metadata(0x04a72466De69109889Db059Cb1A4460Ca0648d9D);
     IERC20Metadata public note =
-        IERC20Metadata(0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503);
+        IERC20Metadata(0x03F734Bd9847575fDbE9bEaDDf9C166F880B5E5f);
 
     uint256 public constant TOTAL_SUPPLY = 1337000 ether;
     uint256 public constant TEAM_SHARE = 500;

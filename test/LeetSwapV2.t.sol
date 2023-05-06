@@ -31,14 +31,14 @@ contract TestLeetSwapV2 is Test {
 
     function setUp() public {
         mainnetFork = vm.createSelectFork(
-            "https://canto.slingshot.finance",
-            3149555
+            "https://canto-testnet.plexnode.wtf",
+            1132244
         );
 
         deployer = new DeployDEXV2();
         (factory, router) = deployer.run();
         weth = IWCANTO(router.WETH());
-        note = IERC20(0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503);
+        note = IERC20(0x03F734Bd9847575fDbE9bEaDDf9C166F880B5E5f);
 
         cantoDEXFactory = IBaseV1Factory(deployer.cantoDEXFactory());
 

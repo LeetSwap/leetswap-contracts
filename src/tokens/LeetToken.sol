@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     address public constant DEAD = 0x000000000000000000000000000000000000dEaD;
-    address public constant NOTE = 0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503;
+    address public constant NOTE = 0x03F734Bd9847575fDbE9bEaDDf9C166F880B5E5f;
     uint256 public constant FEE_DENOMINATOR = 1e4;
     uint256 public constant MAX_FEE = 1000;
     ITurnstile public immutable turnstile;

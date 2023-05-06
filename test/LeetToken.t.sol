@@ -24,18 +24,18 @@ contract TestLeetToken is Test {
     IWCANTO public weth;
     IERC20 public note;
 
-    address noteAccountant = 0x4F6DCfa2F69AF7350AAc48D3a3d5B8D03b5378AA;
+    address noteAccountant = 0xdb91f7127Aa66855845696db77c37d1b6bEAd2db;
 
     function setUp() public {
         mainnetFork = vm.createSelectFork(
-            "https://canto.slingshot.finance",
-            3149555
+            "https://canto-testnet.plexnode.wtf",
+            1132244
         );
 
         dexDeployer = new DeployDEXV2();
         (factory, router) = dexDeployer.run();
         weth = IWCANTO(router.WETH());
-        note = IERC20(0x4e71A2E537B7f9D9413D3991D37958c0b5e1e503);
+        note = IERC20(0x03F734Bd9847575fDbE9bEaDDf9C166F880B5E5f);
 
         cantoDEXFactory = IBaseV1Factory(dexDeployer.cantoDEXFactory());
 
