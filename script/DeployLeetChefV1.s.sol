@@ -8,8 +8,6 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 contract DeployLeetChefV1 is Test {
     using Strings for uint256;
 
-    address public wcanto = 0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9;
-
     function setUp() public view {
         console.log(
             "Running script on chain with ID:",

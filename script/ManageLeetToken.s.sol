@@ -9,8 +9,6 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 contract ManageLeetToken is Test {
     using Strings for uint256;
 
-    address public wcanto = 0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9;
-
     function setUp() public view {
         console.log(
             "Running script on chain with ID:",
@@ -28,9 +26,10 @@ contract ManageLeetToken is Test {
         leet.enableTrading();
     }
 
-    function setTradingEnabledTimestamp(LeetToken leet, uint256 timestamp)
-        public
-    {
+    function setTradingEnabledTimestamp(
+        LeetToken leet,
+        uint256 timestamp
+    ) public {
         vm.broadcast();
         leet.setTradingEnabledTimestamp(timestamp);
     }
@@ -60,11 +59,10 @@ contract ManageLeetToken is Test {
         vm.stopBroadcast();
     }
 
-    function balanceOf(LeetToken leet, address account)
-        public
-        view
-        returns (uint256 balance)
-    {
+    function balanceOf(
+        LeetToken leet,
+        address account
+    ) public view returns (uint256 balance) {
         balance = leet.balanceOf(account);
     }
 
@@ -78,9 +76,10 @@ contract ManageLeetToken is Test {
         leet.setSwapFeesAtAmount(amount);
     }
 
-    function setFeeDiscountOracle(LeetToken leet, IFeeDiscountOracle oracle)
-        public
-    {
+    function setFeeDiscountOracle(
+        LeetToken leet,
+        IFeeDiscountOracle oracle
+    ) public {
         vm.broadcast();
         leet.setFeeDiscountOracle(oracle);
     }

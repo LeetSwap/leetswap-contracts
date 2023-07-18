@@ -18,8 +18,8 @@ contract DeployDEXV2 is Test {
             block.chainid.toString()
         );
 
-        wcantoAddresses[1101] = 0x4F9A0e7FD2Bf6067db6994CF12E4495Df938E6e9;
-        wcantoAddresses[1442] = 0x10B7DE073b514f54E27B71cd267CcE4379bbfac9;
+        wcantoAddresses[8453] = 0x4200000000000000000000000000000000000006;
+        wcantoAddresses[84531] = 0x4200000000000000000000000000000000000006;
 
         wcanto = wcantoAddresses[block.chainid];
         require(wcanto != address(0), "wcanto: unsupported chain");
@@ -38,10 +38,9 @@ contract DeployDEXV2 is Test {
         console.logBytes32(pairInitCodeHash);
     }
 
-    function deploy(address _wcanto)
-        public
-        returns (LeetSwapV2Factory factory, LeetSwapV2Router01 router)
-    {
+    function deploy(
+        address _wcanto
+    ) public returns (LeetSwapV2Factory factory, LeetSwapV2Router01 router) {
         vm.startBroadcast();
 
         factory = new LeetSwapV2Factory();
@@ -50,10 +49,9 @@ contract DeployDEXV2 is Test {
         vm.stopBroadcast();
     }
 
-    function deployRouter(address _factory)
-        public
-        returns (LeetSwapV2Router01 router)
-    {
+    function deployRouter(
+        address _factory
+    ) public returns (LeetSwapV2Router01 router) {
         vm.startBroadcast();
         router = new LeetSwapV2Router01(address(_factory), wcanto);
     }

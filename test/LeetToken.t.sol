@@ -68,9 +68,10 @@ contract TestLeetToken is Test {
         assertEq(leet.balanceOf(leet.owner()), 1337000 * 1e18);
     }
 
-    function addLiquidityWithCanto(uint256 tokenAmount, uint256 cantoAmount)
-        public
-    {
+    function addLiquidityWithCanto(
+        uint256 tokenAmount,
+        uint256 cantoAmount
+    ) public {
         address liquidityManager = leet.owner();
 
         vm.startPrank(liquidityManager);
@@ -639,7 +640,6 @@ contract TestLeetToken is Test {
         pairToken.mint(address(this), pairTokenLiquidityAmount);
 
         pairToken.mint(leet.owner(), pairTokenLiquidityAmount);
-        vm.stopPrank();
 
         (LeetToken _leet, LeetChefV1 _chef, LeetBar _bar) = leetDeployer
             .deployAndLaunch(
