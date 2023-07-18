@@ -18,8 +18,7 @@ contract DeployDEXV2 is Test {
             block.chainid.toString()
         );
 
-        wcantoAddresses[8453] = 0x4200000000000000000000000000000000000006;
-        wcantoAddresses[84531] = 0x4200000000000000000000000000000000000006;
+        wcantoAddresses[59144] = 0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f;
 
         wcanto = wcantoAddresses[block.chainid];
         require(wcanto != address(0), "wcanto: unsupported chain");
