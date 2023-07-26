@@ -1,4 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+//
+// LEETSWAP
+//
+// The #1 DEX for leet degens
+//
+//
+// Website: https://leetswap.finance
+// Telegram: https://t.me/LeetSwap
+// Twitter: https://twitter.com/LeetSwap
+//
 pragma solidity =0.8.17;
 
 import "@leetswap/interfaces/ILiquidityManageable.sol";
@@ -42,13 +52,13 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     uint256 public maxSwapFeesAmount;
     uint256 public maxWalletAmount;
 
-    uint256 public sniperBuyBaseFee = 2000;
-    uint256 public sniperBuyFeeDecayPeriod = 15 minutes;
+    uint256 public sniperBuyBaseFee = 0;
+    uint256 public sniperBuyFeeDecayPeriod = 0;
     uint256 public sniperBuyFeeBurnShare = 2500;
     bool public sniperBuyFeeEnabled = true;
 
-    uint256 public sniperSellBaseFee = 2000;
-    uint256 public sniperSellFeeDecayPeriod = 24 hours;
+    uint256 public sniperSellBaseFee = 0;
+    uint256 public sniperSellFeeDecayPeriod = 0;
     uint256 public sniperSellFeeBurnShare = 2500;
     bool public sniperSellFeeEnabled = true;
 
@@ -88,7 +98,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
     error TransferFailed();
     error ArrayLengthMismatch();
 
-    constructor(address _router, address _swapPairToken) ERC20("Leet", "LEET") {
+    constructor(
+        address _router,
+        address _swapPairToken
+    ) ERC20("leetswap.finance", "LEET") {
         ILeetSwapV2Router01 router = ILeetSwapV2Router01(_router);
         ILeetSwapV2Factory factory = ILeetSwapV2Factory(router.factory());
         swapPairToken = _swapPairToken;
@@ -102,8 +115,8 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         _isExcludedFromMaxWallet[DEAD] = true;
 
         burnBuyFee = 0;
-        farmsBuyFee = 75;
-        stakingBuyFee = 25;
+        farmsBuyFee = 0;
+        stakingBuyFee = 0;
         treasuryBuyFee = 0;
         setBuyFees(burnBuyFee, farmsBuyFee, stakingBuyFee, treasuryBuyFee);
 
@@ -128,12 +141,12 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         maxWalletEnabled = true;
         // pairAutoDetectionEnabled = true;
 
-        _mint(owner(), 1337000 * 10**decimals());
+        _mint(owner(), 1337000 * 10 ** decimals());
 
         swapFeesRouter = router;
         swapFeesAtAmount = (totalSupply() * 3) / 1e5;
-        maxSwapFeesAmount = (totalSupply() * 2) / 1e4;
-        maxWalletAmount = (totalSupply() * 1) / 1e3; // 1.337% of the CIRCULATING supply
+        maxSwapFeesAmount = (totalSupply() * 4) / 1e5;
+        maxWalletAmount = (totalSupply() * 1) / 1e3; // 1% of the CIRCULATING supply
     }
 
     modifier onlyLiquidityManager() {
@@ -201,10 +214,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         return false;
     }
 
-    function _shouldTakeTransferTax(address sender, address recipient)
-        internal
-        returns (bool)
-    {
+    function _shouldTakeTransferTax(
+        address sender,
+        address recipient
+    ) internal returns (bool) {
         if (isExcludedFromFee[sender] || isExcludedFromFee[recipient]) {
             return false;
         }
@@ -250,20 +263,18 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     /************************************************************************/
 
-    function buyFeeDiscountFor(address account, uint256 totalFeeAmount)
-        public
-        view
-        returns (uint256)
-    {
+    function buyFeeDiscountFor(
+        address account,
+        uint256 totalFeeAmount
+    ) public view returns (uint256) {
         if (address(feeDiscountOracle) == address(0)) return 0;
         return feeDiscountOracle.buyFeeDiscountFor(account, totalFeeAmount);
     }
 
-    function sellFeeDiscountFor(address account, uint256 totalFeeAmount)
-        public
-        view
-        returns (uint256)
-    {
+    function sellFeeDiscountFor(
+        address account,
+        uint256 totalFeeAmount
+    ) public view returns (uint256) {
         if (address(feeDiscountOracle) == address(0)) return 0;
         return feeDiscountOracle.sellFeeDiscountFor(account, totalFeeAmount);
     }
@@ -340,10 +351,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         return totalFeeAmount;
     }
 
-    function _takeSniperBuyFee(address sender, uint256 amount)
-        internal
-        returns (uint256)
-    {
+    function _takeSniperBuyFee(
+        address sender,
+        uint256 amount
+    ) internal returns (uint256) {
         uint256 totalFeeAmount = (amount * sniperBuyFee()) / FEE_DENOMINATOR;
         uint256 burnFeeAmount = (totalFeeAmount * sniperBuyFeeBurnShare) /
             FEE_DENOMINATOR;
@@ -357,10 +368,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         return totalFeeAmount;
     }
 
-    function _takeSniperSellFee(address sender, uint256 amount)
-        internal
-        returns (uint256)
-    {
+    function _takeSniperSellFee(
+        address sender,
+        uint256 amount
+    ) internal returns (uint256) {
         uint256 totalFeeAmount = (amount * sniperSellFee()) / FEE_DENOMINATOR;
         uint256 burnFeeAmount = (totalFeeAmount * sniperSellFeeBurnShare) /
             FEE_DENOMINATOR;
@@ -467,10 +478,9 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         return _isLiquidityManagementPhase;
     }
 
-    function setLiquidityManagementPhase(bool isLiquidityManagementPhase_)
-        external
-        onlyLiquidityManager
-    {
+    function setLiquidityManagementPhase(
+        bool isLiquidityManagementPhase_
+    ) external onlyLiquidityManager {
         _isLiquidityManagementPhase = isLiquidityManagementPhase_;
     }
 
@@ -485,10 +495,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         withdrawStuckEth(address(this).balance);
     }
 
-    function withdrawStuckTokens(IERC20 token, uint256 amount)
-        public
-        onlyOwner
-    {
+    function withdrawStuckTokens(
+        IERC20 token,
+        uint256 amount
+    ) public onlyOwner {
         bool success = token.transfer(msg.sender, amount);
         if (!success) revert TransferFailed();
     }
@@ -498,10 +508,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         withdrawStuckTokens(token, balance);
     }
 
-    function airdropHolders(address[] memory wallets, uint256[] memory amounts)
-        external
-        onlyOwner
-    {
+    function airdropHolders(
+        address[] memory wallets,
+        uint256[] memory amounts
+    ) external onlyOwner {
         if (wallets.length != amounts.length) {
             revert ArrayLengthMismatch();
         }
@@ -515,11 +525,9 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
 
     /************************************************************************/
 
-    function isExcludedFromMaxWallet(address account)
-        public
-        view
-        returns (bool)
-    {
+    function isExcludedFromMaxWallet(
+        address account
+    ) public view returns (bool) {
         return _isExcludedFromMaxWallet[account] || _isLeetPair[account];
     }
 
@@ -627,10 +635,10 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
             treasurySellFee;
     }
 
-    function setLiquidityManager(address _liquidityManager, bool _isManager)
-        public
-        onlyOwner
-    {
+    function setLiquidityManager(
+        address _liquidityManager,
+        bool _isManager
+    ) public onlyOwner {
         isLiquidityManager[_liquidityManager] = _isManager;
     }
 
@@ -643,10 +651,9 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         _currentCacheVersion++;
     }
 
-    function setIndirectSwapFeeEnabled(bool _indirectSwapFeeEnabled)
-        public
-        onlyOwner
-    {
+    function setIndirectSwapFeeEnabled(
+        bool _indirectSwapFeeEnabled
+    ) public onlyOwner {
         indirectSwapFeeEnabled = _indirectSwapFeeEnabled;
     }
 
@@ -673,24 +680,21 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         tradingEnabledTimestamp = _timestamp;
     }
 
-    function setPairAutoDetectionEnabled(bool _pairAutoDetectionEnabled)
-        public
-        onlyOwner
-    {
+    function setPairAutoDetectionEnabled(
+        bool _pairAutoDetectionEnabled
+    ) public onlyOwner {
         pairAutoDetectionEnabled = _pairAutoDetectionEnabled;
     }
 
-    function setSniperBuyFeeEnabled(bool _sniperBuyFeeEnabled)
-        public
-        onlyOwner
-    {
+    function setSniperBuyFeeEnabled(
+        bool _sniperBuyFeeEnabled
+    ) public onlyOwner {
         sniperBuyFeeEnabled = _sniperBuyFeeEnabled;
     }
 
-    function setSniperSellFeeEnabled(bool _sniperSellFeeEnabled)
-        public
-        onlyOwner
-    {
+    function setSniperSellFeeEnabled(
+        bool _sniperSellFeeEnabled
+    ) public onlyOwner {
         sniperSellFeeEnabled = _sniperSellFeeEnabled;
     }
 
@@ -702,10 +706,9 @@ contract LeetToken is ERC20, Ownable, ILiquidityManageable {
         maxSwapFeesAmount = _maxSwapFeesAmount;
     }
 
-    function setSwappingFeesEnabled(bool _swappingFeesEnabled)
-        public
-        onlyOwner
-    {
+    function setSwappingFeesEnabled(
+        bool _swappingFeesEnabled
+    ) public onlyOwner {
         swappingFeesEnabled = _swappingFeesEnabled;
     }
 

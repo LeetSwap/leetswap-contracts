@@ -69,4 +69,9 @@ contract ManageLeetChefV1 is Test {
         vm.broadcast();
         chef.reclaimTokens(address(leet), amount, recipient);
     }
+
+    function harvest(LeetChefV1 chef, uint256 pid) public {
+        vm.broadcast();
+        chef.harvest(pid, msg.sender);
+    }
 }

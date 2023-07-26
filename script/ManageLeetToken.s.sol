@@ -39,6 +39,11 @@ contract ManageLeetToken is Test {
         leet.setMaxWalletEnabled(enabled);
     }
 
+    function setMaxWalletAmount(LeetToken leet, uint256 amount) public {
+        vm.broadcast();
+        leet.setMaxWalletAmount(amount);
+    }
+
     function setIndirectSwapFeeEnabled(
         LeetToken leet,
         bool indirectSwapFeeEnabled
