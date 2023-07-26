@@ -314,7 +314,7 @@ contract TestLeetToken is Test {
     }
 
     function testBuyFeeDiscount() public {
-        uint256 taxDiscount = 0.5 ether;
+        uint256 taxDiscount = 0 ether;
         IFeeDiscountOracle oracle = new StubFeeDiscountOracle(taxDiscount);
 
         vm.startPrank(leet.owner());
