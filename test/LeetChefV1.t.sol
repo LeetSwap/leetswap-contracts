@@ -4,6 +4,7 @@ pragma solidity >=0.8.0;
 import "forge-std/Test.sol";
 
 import "../script/DeployLeetChefV1.s.sol";
+import "../script/DeployRewarders.s.sol";
 
 import {DeployLeetToken, LeetToken} from "../script/DeployLeetToken.s.sol";
 import "../script/DeployDEXV2.s.sol";
@@ -27,6 +28,8 @@ contract TestLeetChefV1 is Test {
     MockERC20 public pairToken;
 
     function setUp() public {
+        vm.warp(42); // so we can go back in time 'till before deployment
+
         // mainnetFork = vm.createSelectFork(
         //     "https://canto.slingshot.finance",
         //     3149555
@@ -75,10 +78,9 @@ contract TestLeetChefV1 is Test {
         vm.warp(block.timestamp + leet.sniperSellFeeDecayPeriod());
     }
 
-    function addLiquidityWithCanto(uint256 leetAmount)
-        public
-        returns (uint256 liquidity)
-    {
+    function addLiquidityWithCanto(
+        uint256 leetAmount
+    ) public returns (uint256 liquidity) {
         address liquidityManager = leet.owner();
 
         vm.startPrank(liquidityManager);
@@ -96,10 +98,9 @@ contract TestLeetChefV1 is Test {
         vm.stopPrank();
     }
 
-    function addLiquidityWithPairToken(uint256 leetAmount)
-        public
-        returns (uint256 liquidity)
-    {
+    function addLiquidityWithPairToken(
+        uint256 leetAmount
+    ) public returns (uint256 liquidity) {
         address liquidityManager = leet.owner();
 
         pairToken.mint(liquidityManager, 10 ether);
@@ -402,6 +403,104 @@ contract TestLeetChefV1 is Test {
         chef.claimLPFees(0);
         assertEq(pairToken.balanceOf(chef.owner()), pairTokenFeesAccrued);
         assertEq(pairToken.balanceOf(address(chef)), existingChefBalance);
+    }
+
+    function testTimeLimitedRewarderPendingRewards() public {
+        uint256 liquidity = addLiquidityWithCanto(800e3);
+        IERC20 lpToken = IERC20(router.pairFor(address(leet), address(weth)));
+        MockERC20 rewardToken = new MockERC20("RewardToken", "RT", 9);
+        vm.label(address(rewardToken), "rewardToken");
+
+        uint256 totalRewardableAmount = 70e12 * 10 ** rewardToken.decimals();
+        uint256 duration = 60 days;
+
+        uint256 startTimestamp = block.timestamp;
+        TimeLimitedRewarder rewarder = new TimeLimitedRewarder(
+            IERC20(address(rewardToken)), // secondary reward token
+            totalRewardableAmount,
+            address(chef),
+            duration
+        );
+        vm.label(address(rewarder), "rewarder");
+
+        vm.startPrank(chef.owner());
+        chef.add(1 /*allocPoint*/, lpToken, rewarder);
+        chef.setPrimaryTokenPerSecond(
+            0.01 ether /*primary emissions per second*/,
+            true
+        );
+        vm.stopPrank();
+
+        // vm.prank(rewarder.owner());
+        // rewarder.add(allocPoints, 0 /*pid*/);
+
+        vm.prank(rewarder.owner());
+        rewarder.set(0 /*pid*/, 1 /*allocPoints*/);
+
+        rewardToken.mint(address(rewarder), totalRewardableAmount);
+
+        vm.prank(leet.owner());
+        lpToken.transfer(address(this), liquidity);
+
+        lpToken.approve(address(chef), UINT256_MAX);
+        chef.deposit(0, liquidity, address(this));
+        assertEq(lpToken.balanceOf(address(chef)), liquidity);
+
+        uint256 emissionsPerSecond = totalRewardableAmount / duration;
+        uint256 elapsed = 1 seconds;
+        uint256 pendingReward = emissionsPerSecond * elapsed;
+        vm.warp(block.timestamp + elapsed);
+        (
+            IERC20[] memory rewardTokens,
+            uint256[] memory rewardAmounts
+        ) = rewarder.pendingTokens(0, address(this), 0 /*dummy arg*/);
+        assertTrue(rewardTokens[0] == IERC20(address(rewardToken)));
+        assertApproxEqAbs(rewardAmounts[0], pendingReward, 9);
+
+        uint256 initialBalance = IERC20(address(rewardToken)).balanceOf(
+            address(this)
+        );
+
+        chef.harvest(0, address(this));
+        assertApproxEqAbs(
+            IERC20(address(rewardToken)).balanceOf(address(this)) -
+                initialBalance,
+            pendingReward,
+            9
+        );
+
+        vm.warp(block.timestamp + elapsed);
+        (rewardTokens, rewardAmounts) = rewarder.pendingTokens(
+            0,
+            address(this),
+            0 /*dummy arg*/
+        );
+        assertApproxEqAbs(rewardAmounts[0], pendingReward, 9);
+
+        chef.withdrawAndHarvest(0, liquidity, address(this));
+        assertEq(lpToken.balanceOf(address(this)), liquidity);
+        assertApproxEqAbs(
+            IERC20(address(rewardToken)).balanceOf(address(this)) -
+                initialBalance,
+            pendingReward * 2,
+            9
+        );
+        chef.deposit(0, liquidity, address(this));
+
+        assertEq(rewarder.rewardPerSecond(), emissionsPerSecond);
+        vm.warp(startTimestamp - 1);
+        assertEq(rewarder.rewardPerSecond(), 0);
+        vm.warp(startTimestamp + duration + 1);
+        assertEq(rewarder.rewardPerSecond(), 0);
+
+        vm.warp(startTimestamp + duration + 1 hours);
+        chef.harvest(0, address(this));
+        assertApproxEqAbs(
+            IERC20(address(rewardToken)).balanceOf(address(this)) -
+                initialBalance,
+            totalRewardableAmount,
+            1e9
+        );
     }
 
     receive() external payable {}
